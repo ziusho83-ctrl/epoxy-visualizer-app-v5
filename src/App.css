@@ -19,9 +19,9 @@ input[type='range'] { width: 180px; padding: 0; }
 .mask-dot:active { cursor: grabbing; }
 .mask-fill { fill: rgba(80, 170, 255, 0.28); stroke: #66c2ff; stroke-width: 0.5; pointer-events: none; }
 .overlay-base { opacity: 1; }
-.overlay-wet { opacity: 0.10; } /* V5: wet-look darkening (clear coat) */
-.overlay-gloss { opacity: 0.58; mix-blend-mode: screen; }
-.overlay-gloss-spot { opacity: 0.42; mix-blend-mode: screen; }
+.overlay-wet { opacity: 0.15; } /* V5: wet-look darkening (clear coat) */
+.overlay-gloss { opacity: 0.78; mix-blend-mode: screen; }
+.overlay-gloss-spot { opacity: 0.65; mix-blend-mode: screen; }
 .compare-stage { overflow: hidden; }
 .after-layer { position: absolute; inset: 0; overflow: hidden; }
 .after-preview { width: 100%; height: auto; }

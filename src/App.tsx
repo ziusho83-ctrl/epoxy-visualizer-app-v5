@@ -371,20 +371,20 @@ function App() {
 
     // V5: perspective-aware Fresnel gloss (vertical, strong at top)
     const g1 = ctx.createLinearGradient(0, 0, 0, h)
-    g1.addColorStop(0, 'rgba(255,255,255,0.40)')
-    g1.addColorStop(0.40, 'rgba(255,255,255,0.18)')
-    g1.addColorStop(0.70, 'rgba(255,255,255,0.06)')
+    g1.addColorStop(0, 'rgba(255,255,255,0.65)')
+    g1.addColorStop(0.40, 'rgba(255,255,255,0.35)')
+    g1.addColorStop(0.70, 'rgba(255,255,255,0.15)')
     g1.addColorStop(1, 'rgba(255,255,255,0.0)')
-    ctx.globalAlpha = 0.58
+    ctx.globalAlpha = 0.78
     ctx.fillStyle = g1
     ctx.fillRect(0, 0, w, h)
 
     // V5: centered specular hotspot in upper floor area
-    const g2 = ctx.createRadialGradient(w * 0.50, h * 0.30, 0, w * 0.50, h * 0.30, Math.max(w, h) * 0.35)
-    g2.addColorStop(0, 'rgba(255,255,255,0.50)')
-    g2.addColorStop(0.40, 'rgba(255,255,255,0.15)')
+    const g2 = ctx.createRadialGradient(w * 0.50, h * 0.25, 0, w * 0.50, h * 0.25, Math.max(w, h) * 0.50)
+    g2.addColorStop(0, 'rgba(255,255,255,0.70)')
+    g2.addColorStop(0.40, 'rgba(255,255,255,0.30)')
     g2.addColorStop(1, 'rgba(255,255,255,0.0)')
-    ctx.globalAlpha = 0.42
+    ctx.globalAlpha = 0.65
     ctx.fillStyle = g2
     ctx.fillRect(0, 0, w, h)
 
@@ -412,10 +412,10 @@ function App() {
     try {
       const logoImg = new Image()
       logoImg.src = "/luxshield-logo.png"
-      const logoW = w * 0.15
+      const logoW = w * 0.25
       const logoH = logoW
-      ctx.globalAlpha = 0.25
-      ctx.drawImage(logoImg, w * 0.80, h * 0.78, logoW, logoH)
+      ctx.globalAlpha = 0.35
+      ctx.drawImage(logoImg, w * 0.375, h * 0.42, logoW, logoH)
       ctx.globalAlpha = 1
     } catch (_) { /* logo not loaded yet, skip */ }
 
@@ -887,15 +887,15 @@ function App() {
                     </clipPath>
                     {/* V5: perspective-aware vertical gloss (Fresnel) */}
                     <linearGradient id="glossGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="white" stopOpacity={0.40} />
-                      <stop offset="40%" stopColor="white" stopOpacity={0.18} />
-                      <stop offset="70%" stopColor="white" stopOpacity={0.06} />
+                      <stop offset="0%" stopColor="white" stopOpacity={0.65} />
+                      <stop offset="40%" stopColor="white" stopOpacity={0.35} />
+                      <stop offset="70%" stopColor="white" stopOpacity={0.30} />
                       <stop offset="100%" stopColor="white" stopOpacity={0.0} />
                     </linearGradient>
                     {/* V5: centered specular hotspot in upper floor area */}
-                    <radialGradient id="glossSpot" cx="50%" cy="30%" r="35%">
-                      <stop offset="0%" stopColor="white" stopOpacity={0.50} />
-                      <stop offset="40%" stopColor="white" stopOpacity={0.15} />
+                    <radialGradient id="glossSpot" cx="50%" cy="25%" r="50%">
+                      <stop offset="0%" stopColor="white" stopOpacity={0.70} />
+                      <stop offset="40%" stopColor="white" stopOpacity={0.30} />
                       <stop offset="100%" stopColor="white" stopOpacity={0.0} />
                     </radialGradient>
                   </defs>
@@ -978,11 +978,11 @@ function App() {
                     <g clipPath="url(#floorClip)">
                       <image
                         href="/luxshield-logo.png"
-                        x="78"
-                        y="75"
-                        width="18"
-                        height="18"
-                        opacity="0.25"
+                        x="35"
+                        y="40"
+                        width="30"
+                        height="30"
+                        opacity="0.35"
                         preserveAspectRatio="xMidYMid meet"
                       />
                     </g>
