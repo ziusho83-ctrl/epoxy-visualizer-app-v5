@@ -15,6 +15,38 @@ type QuoteRequest = {
   notes: string
 }
 
+/* ── V5 color helpers ── */
+function hexToHsl(hex: string): [number, number, number] {
+  let r = parseInt(hex.slice(1, 3), 16) / 255
+  let g = parseInt(hex.slice(3, 5), 16) / 255
+  let b = parseInt(hex.slice(5, 7), 16) / 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b)
+  let h = 0, s = 0
+  const l = (max + min) / 2
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6
+    else if (max === g) h = ((b - r) / d + 2) / 6
+    else h = ((r - g) / d + 4) / 6
+  }
+  return [h * 360, s * 100, l * 100]
+}
+function hslToHex(h: number, s: number, l: number): string {
+  s /= 100; l /= 100
+  const a = s * Math.min(l, 1 - l)
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)
+    return Math.round(255 * Math.max(0, Math.min(1, color))).toString(16).padStart(2, '0')
+  }
+  return `#${f(0)}${f(8)}${f(4)}`
+}
+function deepenColor(hex: string): string {
+  const [h, s, l] = hexToHsl(hex)
+  return hslToHex(h, Math.min(100, s * 1.12), l * 0.92)
+}
+
 const flakeToneMap: Record<string, string[]> = {
   // tuned per latest direction
   Stonewash: ['#b5c8e6', '#6186bd', '#1f4578'], // same profile as previous Orbit
@@ -123,7 +155,9 @@ function App() {
   }, [maskPoints])
 
   const flakeTones = flakeToneMap[selectedFlake] ?? ['#d0d4db', '#8f96a4', '#59606f']
-  const baseSolid = solidBaseMap[selectedSolid] ?? '#7d8289'
+  const baseSolidRaw = solidBaseMap[selectedSolid] ?? '#7d8289'
+  // V5: deepened base for wet-look clear-coat effect
+  const baseSolid = deepenColor(baseSolidRaw)
 
   const ultraFlakeMacroDots = useMemo(
     () => seededDots(`${selectedSolid}-${selectedFlake}-ultra-macro`, 22000, flakeTones.length),
@@ -266,7 +300,7 @@ function App() {
     ctx.closePath()
     ctx.clip()
 
-    // Solid base with slight transparency so floor shading/details still read naturally
+    // V5: deepened solid base (clear-coat saturation boost)
     ctx.globalAlpha = 1
     ctx.fillStyle = baseSolid
     ctx.fillRect(0, 0, w, h)
@@ -290,6 +324,12 @@ function App() {
       }
     }
 
+    // V5: wet-look darkening layer (clear coat over flakes)
+    ctx.globalAlpha = 0.10
+    ctx.fillStyle = '#000000'
+    ctx.fillRect(0, 0, w, h)
+    ctx.globalAlpha = 1
+
     // Subtle texture so the floor reads as coated material (not a flat block)
     for (let i = 0; i < 1200; i++) {
       const x = Math.random() * w
@@ -300,22 +340,42 @@ function App() {
       ctx.fillRect(x, y, 1, 1)
     }
 
-    // Gloss (reduced)
-    const g1 = ctx.createLinearGradient(0, 0, w, h)
-    g1.addColorStop(0, 'rgba(255,255,255,0.30)')
-    g1.addColorStop(0.32, 'rgba(255,255,255,0.10)')
+    // V5: perspective-aware Fresnel gloss (vertical, strong at top)
+    const g1 = ctx.createLinearGradient(0, 0, 0, h)
+    g1.addColorStop(0, 'rgba(255,255,255,0.40)')
+    g1.addColorStop(0.40, 'rgba(255,255,255,0.18)')
+    g1.addColorStop(0.70, 'rgba(255,255,255,0.06)')
     g1.addColorStop(1, 'rgba(255,255,255,0.0)')
     ctx.globalAlpha = 0.58
     ctx.fillStyle = g1
     ctx.fillRect(0, 0, w, h)
 
-    const g2 = ctx.createRadialGradient(w * 0.18, h * 0.16, 0, w * 0.18, h * 0.16, Math.max(w, h) * 0.55)
-    g2.addColorStop(0, 'rgba(255,255,255,0.26)')
-    g2.addColorStop(0.45, 'rgba(255,255,255,0.07)')
+    // V5: centered specular hotspot in upper floor area
+    const g2 = ctx.createRadialGradient(w * 0.50, h * 0.30, 0, w * 0.50, h * 0.30, Math.max(w, h) * 0.35)
+    g2.addColorStop(0, 'rgba(255,255,255,0.50)')
+    g2.addColorStop(0.40, 'rgba(255,255,255,0.15)')
     g2.addColorStop(1, 'rgba(255,255,255,0.0)')
     ctx.globalAlpha = 0.42
     ctx.fillStyle = g2
     ctx.fillRect(0, 0, w, h)
+
+    // V5: flake specularity highlights on macro dots
+    if (selectedFlake !== 'None') {
+      for (const d of macroDots) {
+        if (d.y > 50) continue
+        const r = Math.max(0.9, d.r * 0.41 * (w / 100))
+        const specR = r * 0.3
+        const dx = d.x - 50, dy = d.y - 30
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        const op = Math.max(0, Math.min(0.85, 1.0 - dist / 45))
+        if (op < 0.05) continue
+        ctx.globalAlpha = op
+        ctx.fillStyle = '#ffffff'
+        ctx.beginPath()
+        ctx.arc((d.x / 100) * w - specR * 0.6, (d.y / 100) * h - specR * 0.6, specR, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
 
     ctx.restore()
     ctx.globalAlpha = 1
@@ -617,7 +677,7 @@ function App() {
   return (
     <main className="wrap">
       <header>
-        <h1>Epoxy Visualizer V4 • Grounded SAM</h1>
+        <h1>Epoxy Visualizer V5 • Grounded SAM</h1>
         <p>Mobile-first before/after preview builder for garage flooring.</p>
       </header>
 
@@ -782,15 +842,18 @@ function App() {
                     <clipPath id="floorClip">
                       {maskPoints.length >= 3 && <polygon points={insetPolygonPointsAttr} />}
                     </clipPath>
-                    <linearGradient id="glossGradient" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="rgba(255,255,255,0.52)" />
-                      <stop offset="32%" stopColor="rgba(255,255,255,0.18)" />
-                      <stop offset="100%" stopColor="rgba(255,255,255,0.0)" />
+                    {/* V5: perspective-aware vertical gloss (Fresnel) */}
+                    <linearGradient id="glossGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="white" stopOpacity={0.40} />
+                      <stop offset="40%" stopColor="white" stopOpacity={0.18} />
+                      <stop offset="70%" stopColor="white" stopOpacity={0.06} />
+                      <stop offset="100%" stopColor="white" stopOpacity={0.0} />
                     </linearGradient>
-                    <radialGradient id="glossSpot" cx="18%" cy="16%" r="55%">
-                      <stop offset="0%" stopColor="rgba(255,255,255,0.42)" />
-                      <stop offset="45%" stopColor="rgba(255,255,255,0.10)" />
-                      <stop offset="100%" stopColor="rgba(255,255,255,0.0)" />
+                    {/* V5: centered specular hotspot in upper floor area */}
+                    <radialGradient id="glossSpot" cx="50%" cy="30%" r="35%">
+                      <stop offset="0%" stopColor="white" stopOpacity={0.50} />
+                      <stop offset="40%" stopColor="white" stopOpacity={0.15} />
+                      <stop offset="100%" stopColor="white" stopOpacity={0.0} />
                     </radialGradient>
                   </defs>
 
@@ -807,8 +870,39 @@ function App() {
                     </g>
                   )}
 
+                  {/* V5: wet-look darkening layer (clear coat deepens color under glass) */}
+                  {maskPoints.length >= 3 && (
+                    <polygon className="overlay-wet" points={polygonPointsAttr} fill="black" />
+                  )}
+
                   {maskPoints.length >= 3 && <polygon className="overlay-gloss" points={polygonPointsAttr} fill="url(#glossGradient)" />}
                   {maskPoints.length >= 3 && <polygon className="overlay-gloss-spot" points={polygonPointsAttr} fill="url(#glossSpot)" />}
+
+                  {/* V5: flake specularity — tiny white highlights on macro dots in upper floor */}
+                  {maskPoints.length >= 3 && selectedFlake !== 'None' && (
+                    <g clipPath="url(#floorClip)">
+                      {liveFlakeMacroDots.map((d, i) => {
+                        if (d.y > 50) return null // only upper 50% of floor area
+                        const r = Math.max(0.08, d.r * 0.41)
+                        const specR = r * 0.3
+                        // distance from hotspot center (50, 30) in normalized coords
+                        const dx = d.x - 50, dy = d.y - 30
+                        const dist = Math.sqrt(dx * dx + dy * dy)
+                        const op = Math.max(0, Math.min(0.85, 1.0 - dist / 45))
+                        if (op < 0.05) return null
+                        return (
+                          <circle
+                            key={`spec-${i}`}
+                            cx={d.x - specR * 0.6}
+                            cy={d.y - specR * 0.6}
+                            r={specR}
+                            fill="white"
+                            opacity={op}
+                          />
+                        )
+                      })}
+                    </g>
+                  )}
                 </svg>
               </div>
 
