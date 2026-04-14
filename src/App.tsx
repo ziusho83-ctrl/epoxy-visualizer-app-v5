@@ -73,7 +73,7 @@ const solidBaseMap: Record<string, string> = {
   Charcoal: '#454850',
 }
 
-function seededFlakes(seed: string, count = 18000, toneCount = 3): Flake[] {
+function seededFlakes(seed: string, count = 25000, toneCount = 3): Flake[] {
   // Full-flake coverage: chips overlap to cover 100% of the floor surface.
   // Real epoxy full-flake has no base color visible — just chips on chips.
   let h = 2166136261
@@ -91,7 +91,7 @@ function seededFlakes(seed: string, count = 18000, toneCount = 3): Flake[] {
   const flakes: Flake[] = []
   for (let i = 0; i < count; i++) {
     // Uniform small chip size with slight variation (like real flake chips)
-    const baseW = 0.35 + rand() * 0.25 // tight range: 0.35-0.60
+    const baseW = 0.18 + rand() * 0.14 // tight range: 0.35-0.60
     const aspect = 0.65 + rand() * 0.70 // slightly irregular
     const baseH = baseW * aspect
     flakes.push({
@@ -188,12 +188,12 @@ function App() {
   const baseSolid = deepenColor(baseSolidRaw)
 
   const exportFlakes = useMemo(
-    () => seededFlakes(`${selectedSolid}-${selectedFlake}-export`, 22000, flakeTones.length),
+    () => seededFlakes(`${selectedSolid}-${selectedFlake}-export`, 35000, flakeTones.length),
     [selectedSolid, selectedFlake, flakeTones.length],
   )
 
   const liveFlakes = useMemo(
-    () => seededFlakes(`${selectedSolid}-${selectedFlake}-live`, isMobilePreview ? 8000 : 15000, flakeTones.length),
+    () => seededFlakes(`${selectedSolid}-${selectedFlake}-live`, isMobilePreview ? 12000 : 25000, flakeTones.length),
     [selectedSolid, selectedFlake, flakeTones.length, isMobilePreview],
   )
 
@@ -952,6 +952,22 @@ function App() {
                       })}
                     </g>
                   )}
+
+                  {/* LuxShield Coatings logo watermark — rendered on top of everything */}
+                  {maskPoints.length >= 3 && (
+                    <g clipPath="url(#floorClip)">
+                      <image
+                        href="/luxshield-logo.png"
+                        x="35"
+                        y="35"
+                        width="30"
+                        height="30"
+                        opacity="0.40"
+                        preserveAspectRatio="xMidYMid meet"
+                      />
+                    </g>
+                  )}
+
                 </svg>
               </div>
 
@@ -964,21 +980,6 @@ function App() {
       </section>
 
       <section className="card">
-
-                  {/* LuxShield Coatings logo watermark */}
-                  {maskPoints.length >= 3 && (
-                    <g clipPath="url(#floorClip)">
-                      <image
-                        href="/luxshield-logo.png"
-                        x="35"
-                        y="40"
-                        width="30"
-                        height="30"
-                        opacity="0.35"
-                        preserveAspectRatio="xMidYMid meet"
-                      />
-                    </g>
-                  )}
 
         <h2>5) Client Quote Request Form</h2>
         <p className="muted">Use this for website leads: visualize first, then submit for a formal quote follow-up.</p>
