@@ -73,7 +73,7 @@ const solidBaseMap: Record<string, string> = {
   Charcoal: '#454850',
 }
 
-function seededFlakes(seed: string, count = 25000, toneCount = 3): Flake[] {
+function seededFlakes(seed: string, count = 40000, toneCount = 3): Flake[] {
   // Full-flake coverage: chips overlap to cover 100% of the floor surface.
   // Real epoxy full-flake has no base color visible — just chips on chips.
   let h = 2166136261
@@ -91,7 +91,7 @@ function seededFlakes(seed: string, count = 25000, toneCount = 3): Flake[] {
   const flakes: Flake[] = []
   for (let i = 0; i < count; i++) {
     // Uniform small chip size with slight variation (like real flake chips)
-    const baseW = 0.18 + rand() * 0.14 // tight range: 0.35-0.60
+    const baseW = 0.04 + rand() * 0.03 // tight range: 0.35-0.60
     const aspect = 0.65 + rand() * 0.70 // slightly irregular
     const baseH = baseW * aspect
     flakes.push({
@@ -188,12 +188,12 @@ function App() {
   const baseSolid = deepenColor(baseSolidRaw)
 
   const exportFlakes = useMemo(
-    () => seededFlakes(`${selectedSolid}-${selectedFlake}-export`, 35000, flakeTones.length),
+    () => seededFlakes(`${selectedSolid}-${selectedFlake}-export`, 50000, flakeTones.length),
     [selectedSolid, selectedFlake, flakeTones.length],
   )
 
   const liveFlakes = useMemo(
-    () => seededFlakes(`${selectedSolid}-${selectedFlake}-live`, isMobilePreview ? 12000 : 25000, flakeTones.length),
+    () => seededFlakes(`${selectedSolid}-${selectedFlake}-live`, isMobilePreview ? 18000 : 40000, flakeTones.length),
     [selectedSolid, selectedFlake, flakeTones.length, isMobilePreview],
   )
 
