@@ -4,7 +4,15 @@ import { flakeBlends, solidColors } from './data/palette'
 
 type Point = { x: number; y: number }
 
-type FlakeDot = { x: number; y: number; r: number; c: number }
+type Flake = {
+  x: number      // 0-100
+  y: number      // 0-100
+  w: number      // base width in 0-100 space
+  h: number      // base height
+  angle: number  // rotation 0-360
+  c: number      // color index
+  bright: number // brightness variation 0.92-1.08
+}
 
 type QuoteRequest = {
   customerName: string
@@ -65,7 +73,7 @@ const solidBaseMap: Record<string, string> = {
   Charcoal: '#454850',
 }
 
-function seededDots(seed: string, count = 650, toneCount = 3): FlakeDot[] {
+function seededFlakes(seed: string, count = 3000, toneCount = 3): Flake[] {
   let h = 2166136261
   for (let i = 0; i < seed.length; i++) {
     h ^= seed.charCodeAt(i)
@@ -78,16 +86,44 @@ function seededDots(seed: string, count = 650, toneCount = 3): FlakeDot[] {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 
-  const dots: FlakeDot[] = []
+  const flakes: Flake[] = []
   for (let i = 0; i < count; i++) {
-    dots.push({
+    const roll = rand()
+    let baseW: number
+    if (roll < 0.60) {
+      baseW = 0.15 + rand() * 0.15
+    } else if (roll < 0.90) {
+      baseW = 0.30 + rand() * 0.25
+    } else if (roll < 0.98) {
+      baseW = 0.55 + rand() * 0.30
+    } else {
+      baseW = 0.85 + rand() * 0.35
+    }
+    const aspect = 0.6 + rand() * 0.8
+    const baseH = baseW * aspect
+    const y = Math.pow(rand(), 1.28) * 100
+    flakes.push({
       x: rand() * 100,
-      y: rand() * 100,
-      r: 0.12 + rand() * 0.28,
+      y,
+      w: baseW,
+      h: baseH,
+      angle: rand() * 360,
       c: Math.floor(rand() * toneCount),
+      bright: 0.92 + rand() * 0.16,
     })
   }
-  return dots
+  return flakes
+}
+
+function adjustBrightness(hex: string, factor: number): string {
+  const r = Math.min(255, Math.max(0, Math.round(parseInt(hex.slice(1, 3), 16) * factor)))
+  const g = Math.min(255, Math.max(0, Math.round(parseInt(hex.slice(3, 5), 16) * factor)))
+  const b = Math.min(255, Math.max(0, Math.round(parseInt(hex.slice(5, 7), 16) * factor)))
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+}
+
+function perspectiveScale(y: number): number {
+  return 0.5 + (y / 100) * 1.0
 }
 
 const QUOTE_WEBHOOK_URL = (import.meta.env.VITE_QUOTE_WEBHOOK_URL as string | undefined) || '/api/quote'
@@ -159,21 +195,13 @@ function App() {
   // V5: deepened base for wet-look clear-coat effect
   const baseSolid = deepenColor(baseSolidRaw)
 
-  const ultraFlakeMacroDots = useMemo(
-    () => seededDots(`${selectedSolid}-${selectedFlake}-ultra-macro`, 22000, flakeTones.length),
-    [selectedSolid, selectedFlake, flakeTones.length],
-  )
-  const ultraFlakeMicroDots = useMemo(
-    () => seededDots(`${selectedSolid}-${selectedFlake}-ultra-micro`, 70000, flakeTones.length),
+  const exportFlakes = useMemo(
+    () => seededFlakes(`${selectedSolid}-${selectedFlake}-export`, 4500, flakeTones.length),
     [selectedSolid, selectedFlake, flakeTones.length],
   )
 
-  const liveFlakeMacroDots = useMemo(
-    () => seededDots(`${selectedSolid}-${selectedFlake}-live-macro`, isMobilePreview ? 8000 : 22000, flakeTones.length),
-    [selectedSolid, selectedFlake, flakeTones.length, isMobilePreview],
-  )
-  const liveFlakeMicroDots = useMemo(
-    () => seededDots(`${selectedSolid}-${selectedFlake}-live-micro`, isMobilePreview ? 25000 : 70000, flakeTones.length),
+  const liveFlakes = useMemo(
+    () => seededFlakes(`${selectedSolid}-${selectedFlake}-live`, isMobilePreview ? 1800 : 2800, flakeTones.length),
     [selectedSolid, selectedFlake, flakeTones.length, isMobilePreview],
   )
 
@@ -286,8 +314,7 @@ function App() {
     ctx: CanvasRenderingContext2D,
     w: number,
     h: number,
-    microDots: FlakeDot[],
-    macroDots: FlakeDot[],
+    flakes: Flake[],
   ) {
     if (maskPoints.length < 3) return
 
@@ -306,21 +333,23 @@ function App() {
     ctx.fillRect(0, 0, w, h)
     ctx.globalAlpha = 1
 
-    // Dense flake broadcast
+    // Realistic flake broadcast with perspective scaling
     if (selectedFlake !== 'None') {
-      for (const d of microDots) {
-        ctx.globalAlpha = 0.72
-        ctx.fillStyle = flakeTones[d.c]
-        ctx.beginPath()
-        ctx.arc((d.x / 100) * w, (d.y / 100) * h, Math.max(0.6, d.r * 0.25 * (w / 100)), 0, Math.PI * 2)
-        ctx.fill()
-      }
-      for (const d of macroDots) {
-        ctx.globalAlpha = 0.98
-        ctx.fillStyle = flakeTones[d.c]
-        ctx.beginPath()
-        ctx.arc((d.x / 100) * w, (d.y / 100) * h, Math.max(0.9, d.r * 0.41 * (w / 100)), 0, Math.PI * 2)
-        ctx.fill()
+      for (const d of flakes) {
+        const pScale = perspectiveScale(d.y)
+        const fw = Math.max(1, d.w * pScale * (w / 100))
+        const fh = Math.max(1, d.h * pScale * (w / 100))
+        const px = (d.x / 100) * w
+        const py = (d.y / 100) * h
+        const color = adjustBrightness(flakeTones[d.c], d.bright)
+
+        ctx.save()
+        ctx.globalAlpha = 0.92
+        ctx.fillStyle = color
+        ctx.translate(px, py)
+        ctx.rotate((d.angle * Math.PI) / 180)
+        ctx.fillRect(-fw / 2, -fh / 2, fw, fh)
+        ctx.restore()
       }
     }
 
@@ -359,12 +388,14 @@ function App() {
     ctx.fillStyle = g2
     ctx.fillRect(0, 0, w, h)
 
-    // V5: flake specularity highlights on macro dots
+    // V5: flake specularity highlights on medium+ flakes in upper floor
     if (selectedFlake !== 'None') {
-      for (const d of macroDots) {
+      for (const d of flakes) {
         if (d.y > 50) continue
-        const r = Math.max(0.9, d.r * 0.41 * (w / 100))
-        const specR = r * 0.3
+        if (d.w < 0.30) continue
+        const pScale = perspectiveScale(d.y)
+        const fw = d.w * pScale * (w / 100)
+        const specR = fw * 0.15
         const dx = d.x - 50, dy = d.y - 30
         const dist = Math.sqrt(dx * dx + dy * dy)
         const op = Math.max(0, Math.min(0.85, 1.0 - dist / 45))
@@ -397,7 +428,7 @@ function App() {
     if (!ctx) throw new Error('Canvas not supported')
 
     ctx.drawImage(img, 0, 0, w, h)
-    drawAfterOverlay(ctx, w, h, ultraFlakeMicroDots, ultraFlakeMacroDots)
+    drawAfterOverlay(ctx, w, h, exportFlakes)
 
     return canvas.toDataURL('image/jpeg', 0.9)
   }
@@ -510,7 +541,7 @@ function App() {
       const afterCtx = afterCanvas.getContext('2d')
       if (!afterCtx) return
       afterCtx.drawImage(img, 0, 0, w, h)
-      drawAfterOverlay(afterCtx, w, h, ultraFlakeMicroDots, ultraFlakeMacroDots)
+      drawAfterOverlay(afterCtx, w, h, exportFlakes)
 
       const outW = 1600
       const headerH = 240
@@ -646,7 +677,7 @@ function App() {
       const afterCtx = afterCanvas.getContext('2d')
       if (!afterCtx) return
       afterCtx.drawImage(img, 0, 0, w, h)
-      drawAfterOverlay(afterCtx, w, h, ultraFlakeMicroDots, ultraFlakeMacroDots)
+      drawAfterOverlay(afterCtx, w, h, exportFlakes)
 
       const canvas = document.createElement('canvas')
       canvas.width = w
@@ -861,12 +892,25 @@ function App() {
 
                   {maskPoints.length >= 3 && selectedFlake !== 'None' && (
                     <g clipPath="url(#floorClip)">
-                      {liveFlakeMicroDots.map((d, i) => (
-                        <circle key={`micro-${i}`} cx={d.x} cy={d.y} r={Math.max(0.05, d.r * 0.25)} fill={flakeTones[d.c]} opacity={0.72} />
-                      ))}
-                      {liveFlakeMacroDots.map((d, i) => (
-                        <circle key={`macro-${i}`} cx={d.x} cy={d.y} r={Math.max(0.08, d.r * 0.41)} fill={flakeTones[d.c]} opacity={0.98} />
-                      ))}
+                      {liveFlakes.map((d, i) => {
+                        const pScale = perspectiveScale(d.y)
+                        const fw = d.w * pScale
+                        const fh = d.h * pScale
+                        const color = adjustBrightness(flakeTones[d.c], d.bright)
+                        return (
+                          <rect
+                            key={`flake-${i}`}
+                            x={d.x - fw / 2}
+                            y={d.y - fh / 2}
+                            width={fw}
+                            height={fh}
+                            rx={fw * 0.1}
+                            fill={color}
+                            opacity={0.92}
+                            transform={`rotate(${d.angle}, ${d.x}, ${d.y})`}
+                          />
+                        )
+                      })}
                     </g>
                   )}
 
@@ -878,14 +922,15 @@ function App() {
                   {maskPoints.length >= 3 && <polygon className="overlay-gloss" points={polygonPointsAttr} fill="url(#glossGradient)" />}
                   {maskPoints.length >= 3 && <polygon className="overlay-gloss-spot" points={polygonPointsAttr} fill="url(#glossSpot)" />}
 
-                  {/* V5: flake specularity — tiny white highlights on macro dots in upper floor */}
+                  {/* V5: flake specularity — white highlights on medium+ flakes in upper floor */}
                   {maskPoints.length >= 3 && selectedFlake !== 'None' && (
                     <g clipPath="url(#floorClip)">
-                      {liveFlakeMacroDots.map((d, i) => {
-                        if (d.y > 50) return null // only upper 50% of floor area
-                        const r = Math.max(0.08, d.r * 0.41)
-                        const specR = r * 0.3
-                        // distance from hotspot center (50, 30) in normalized coords
+                      {liveFlakes.map((d, i) => {
+                        if (d.y > 50) return null
+                        if (d.w < 0.30) return null
+                        const pScale = perspectiveScale(d.y)
+                        const fw = d.w * pScale
+                        const specR = fw * 0.15
                         const dx = d.x - 50, dy = d.y - 30
                         const dist = Math.sqrt(dx * dx + dy * dy)
                         const op = Math.max(0, Math.min(0.85, 1.0 - dist / 45))
@@ -915,6 +960,22 @@ function App() {
       </section>
 
       <section className="card">
+
+                  {/* LuxShield Coatings logo watermark */}
+                  {maskPoints.length >= 3 && (
+                    <g clipPath="url(#floorClip)">
+                      <image
+                        href="/luxshield-logo.png"
+                        x="78"
+                        y="75"
+                        width="18"
+                        height="18"
+                        opacity="0.25"
+                        preserveAspectRatio="xMidYMid meet"
+                      />
+                    </g>
+                  )}
+
         <h2>5) Client Quote Request Form</h2>
         <p className="muted">Use this for website leads: visualize first, then submit for a formal quote follow-up.</p>
         <div className="row two-col" style={{ marginTop: 10 }}>
