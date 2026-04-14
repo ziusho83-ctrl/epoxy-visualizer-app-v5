@@ -73,7 +73,7 @@ const solidBaseMap: Record<string, string> = {
   Charcoal: '#454850',
 }
 
-function seededFlakes(seed: string, count = 40000, toneCount = 3): Flake[] {
+function seededFlakes(seed: string, count = 80000, toneCount = 3): Flake[] {
   // Full-flake coverage: chips overlap to cover 100% of the floor surface.
   // Real epoxy full-flake has no base color visible — just chips on chips.
   let h = 2166136261
@@ -188,12 +188,12 @@ function App() {
   const baseSolid = deepenColor(baseSolidRaw)
 
   const exportFlakes = useMemo(
-    () => seededFlakes(`${selectedSolid}-${selectedFlake}-export`, 50000, flakeTones.length),
+    () => seededFlakes(`${selectedSolid}-${selectedFlake}-export`, 100000, flakeTones.length),
     [selectedSolid, selectedFlake, flakeTones.length],
   )
 
   const liveFlakes = useMemo(
-    () => seededFlakes(`${selectedSolid}-${selectedFlake}-live`, isMobilePreview ? 18000 : 40000, flakeTones.length),
+    () => seededFlakes(`${selectedSolid}-${selectedFlake}-live`, isMobilePreview ? 35000 : 80000, flakeTones.length),
     [selectedSolid, selectedFlake, flakeTones.length, isMobilePreview],
   )
 
@@ -404,10 +404,10 @@ function App() {
     try {
       const logoImg = new Image()
       logoImg.src = "/luxshield-logo.png"
-      const logoW = w * 0.25
+      const logoW = w * 0.10
       const logoH = logoW
       ctx.globalAlpha = 0.35
-      ctx.drawImage(logoImg, w * 0.375, h * 0.42, logoW, logoH)
+      ctx.drawImage(logoImg, w * 0.85, h * 0.85, logoW, logoH)
       ctx.globalAlpha = 1
     } catch (_) { /* logo not loaded yet, skip */ }
 
@@ -958,11 +958,11 @@ function App() {
                     <g clipPath="url(#floorClip)">
                       <image
                         href="/luxshield-logo.png"
-                        x="35"
-                        y="35"
-                        width="30"
-                        height="30"
-                        opacity="0.40"
+                        x="82"
+                        y="82"
+                        width="12"
+                        height="12"
+                        opacity="0.45"
                         preserveAspectRatio="xMidYMid meet"
                       />
                     </g>
