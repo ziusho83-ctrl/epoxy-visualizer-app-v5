@@ -408,6 +408,18 @@ function App() {
       }
     }
 
+    // LuxShield logo watermark
+    try {
+      const logoImg = new Image()
+      logoImg.src = "/luxshield-logo.png"
+      const logoW = w * 0.15
+      const logoH = logoW
+      ctx.globalAlpha = 0.25
+      ctx.drawImage(logoImg, w * 0.80, h * 0.78, logoW, logoH)
+      ctx.globalAlpha = 1
+    } catch (_) { /* logo not loaded yet, skip */ }
+
+
     ctx.restore()
     ctx.globalAlpha = 1
   }
