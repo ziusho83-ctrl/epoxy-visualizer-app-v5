@@ -190,16 +190,16 @@ function App() {
 
   const exportFlakes = useMemo(
     () => [
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-macro`, 110000, flakeTones.length).map((f) => ({ ...f, w: f.w * 2.5, h: f.h * 2.5 })),
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-micro`, 240000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.2, h: f.h * 1.2 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-macro`, 110000, flakeTones.length).map((f) => ({ ...f, w: f.w * 5.0, h: f.h * 5.0 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-micro`, 240000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.8, h: f.h * 1.8 })),
     ],
     [selectedSolid, selectedFlake, flakeTones.length],
   )
 
   const liveFlakes = useMemo(
     () => [
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-macro`, isMobilePreview ? 32000 : 110000, flakeTones.length).map((f) => ({ ...f, w: f.w * 2.5, h: f.h * 2.5 })),
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-micro`, isMobilePreview ? 52000 : 240000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.2, h: f.h * 1.2 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-macro`, isMobilePreview ? 32000 : 110000, flakeTones.length).map((f) => ({ ...f, w: f.w * 5.0, h: f.h * 5.0 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-micro`, isMobilePreview ? 52000 : 240000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.8, h: f.h * 1.8 })),
     ],
     [selectedSolid, selectedFlake, flakeTones.length, isMobilePreview],
   )
