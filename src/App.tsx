@@ -56,15 +56,15 @@ function deepenColor(hex: string): string {
 }
 
 const flakeToneMap: Record<string, string[]> = {
-  // tuned per latest direction
-  Stonewash: ['#d5e4f3', '#6f95c9', '#173e72'], // brighter white-blue contrast for clearer flake read
-  Nightfall: ['#9ca3af', '#4b5563', '#1f2937'], // more charcoal + black
-  Orbit: ['#1f4578', '#1f4578', '#2b5b99', '#111111', '#f4f4f4', '#c9ced6'], // ~50% blue bias + black/white/light grey
-  Outback: ['#e8dccf', '#8b6a4d', '#2b2219'], // more brown + black
-  'Cabin Fever': ['#f4d36b', '#f5f5f5', '#1f1f1f'], // yellow + white + black
-  'Tan Blend': ['#e0c8a2', '#b98e61', '#7c5d3f'],
-  'Tidal Wave': ['#d9dde5', '#8fa5b8', '#4b6478'],
-  'Stony Creek': ['#d5d7d8', '#9fa4a6', '#5f666b'],
+  // tuned from LuxShield reference photos
+  Stonewash: ['#ece7e0', '#c8c1b7', '#74869c', '#2b3f67'],
+  Nightfall: ['#9ca3af', '#4b5563', '#1f2937'],
+  Orbit: ['#23467f', '#335f9e', '#f3f4f6', '#cfd5dd', '#111111'],
+  Outback: ['#e8dccf', '#8b6a4d', '#2b2219'],
+  'Cabin Fever': ['#efe3cf', '#d8d2c7', '#faf8f4', '#1f1f1f'],
+  'Tan Blend': ['#f4efe7', '#ddd2c2', '#c7bbab', '#b59652', '#8b4e32', '#3c302b'],
+  'Tidal Wave': ['#eef1f0', '#d8ddd9', '#b9c7cd', '#7f97a6'],
+  'Stony Creek': ['#f5f6f7', '#dfe3e6', '#c8cdd1', '#aeb5bb'],
 }
 
 const solidBaseMap: Record<string, string> = {
