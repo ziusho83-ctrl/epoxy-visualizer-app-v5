@@ -188,12 +188,18 @@ function App() {
   const baseSolid = deepenColor(baseSolidRaw)
 
   const exportFlakes = useMemo(
-    () => seededFlakes(`${selectedSolid}-${selectedFlake}-export`, 100000, flakeTones.length),
+    () => [
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-macro`, 100000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.35, h: f.h * 1.35 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-micro`, 220000, flakeTones.length).map((f) => ({ ...f, w: f.w * 0.72, h: f.h * 0.72 })),
+    ],
     [selectedSolid, selectedFlake, flakeTones.length],
   )
 
   const liveFlakes = useMemo(
-    () => seededFlakes(`${selectedSolid}-${selectedFlake}-live`, isMobilePreview ? 35000 : 80000, flakeTones.length),
+    () => [
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-macro`, isMobilePreview ? 28000 : 100000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.35, h: f.h * 1.35 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-micro`, isMobilePreview ? 45000 : 220000, flakeTones.length).map((f) => ({ ...f, w: f.w * 0.72, h: f.h * 0.72 })),
+    ],
     [selectedSolid, selectedFlake, flakeTones.length, isMobilePreview],
   )
 
@@ -716,6 +722,7 @@ function App() {
           <p className="brand-kicker">LuxShield Coatings</p>
           <h1>Epoxy Visualizer V5</h1>
           <p>Shielding surfaces with lasting beauty.</p>
+          <p className="brand-powered">App powered by AI.</p>
         </div>
         <img src="/luxshield-logo.png" alt="LuxShield Coatings logo" className="brand-logo" />
       </header>
@@ -1039,7 +1046,7 @@ Clear Floor Mask
         </div>
         <div className="row">
           <button onClick={submitQuoteRequest} disabled={submittingQuote}>{submittingQuote ? 'Submitting...' : 'Submit Quote Request for Review'}</button>
-          <span className="muted">Endpoint: {QUOTE_WEBHOOK_URL}</span>
+          <span className="muted">We will review your request and follow up shortly.</span>
         </div>
         {quoteStatus && <p className="status-msg">{quoteStatus}</p>}
       </section>
