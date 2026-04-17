@@ -890,7 +890,7 @@ Clear Floor Mask
         <p className="badge">Selected finish: {finishLabel} • High-gloss appearance</p>
       </section>
 
-      <section className="card">
+      <section className="card tight-next">
         <div className="section-title-row">
           <div>
             <h2>4) Before/After Slider + Gloss Preview</h2>

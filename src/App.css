@@ -4,6 +4,7 @@ body { margin: 0; font-family: Inter, system-ui, Arial; background: #050707; col
 header h1 { margin: 0; font-size: 1.5rem; color: #62e7c8; letter-spacing: 0.01em; }
 header p { color: #d8c2b0; margin-top: 6px; }
 .card { background: #0b0d0d; border: 1px solid rgba(98, 231, 200, 0.22); border-radius: 22px; padding: 16px; margin-top: 14px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02); }
+.card.tight-next { margin-top: 8px; }
 .card h2 { margin: 0 0 8px 0; font-size: 1rem; color: #62e7c8; }
 .row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
 button, select, input, textarea { font: inherit; padding: 11px 12px; border-radius: 14px; border: 1px solid rgba(98, 231, 200, 0.22); background: #0a0c0c; color: #f3efe8; }
