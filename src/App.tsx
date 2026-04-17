@@ -190,16 +190,16 @@ function App() {
 
   const exportFlakes = useMemo(
     () => [
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-macro`, 100000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.35, h: f.h * 1.35 })),
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-micro`, 220000, flakeTones.length).map((f) => ({ ...f, w: f.w * 0.72, h: f.h * 0.72 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-macro`, 100000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.6, h: f.h * 1.6 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-micro`, 220000, flakeTones.length).map((f) => ({ ...f, w: f.w * 0.9, h: f.h * 0.9 })),
     ],
     [selectedSolid, selectedFlake, flakeTones.length],
   )
 
   const liveFlakes = useMemo(
     () => [
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-macro`, isMobilePreview ? 28000 : 100000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.35, h: f.h * 1.35 })),
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-micro`, isMobilePreview ? 45000 : 220000, flakeTones.length).map((f) => ({ ...f, w: f.w * 0.72, h: f.h * 0.72 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-macro`, isMobilePreview ? 28000 : 100000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.6, h: f.h * 1.6 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-micro`, isMobilePreview ? 45000 : 220000, flakeTones.length).map((f) => ({ ...f, w: f.w * 0.9, h: f.h * 0.9 })),
     ],
     [selectedSolid, selectedFlake, flakeTones.length, isMobilePreview],
   )
@@ -345,7 +345,7 @@ function App() {
         const color = adjustBrightness(flakeTones[d.c], d.bright)
 
         ctx.save()
-        ctx.globalAlpha = 0.92
+        ctx.globalAlpha = 1
         ctx.fillStyle = color
         ctx.translate(px, py)
         ctx.rotate((d.angle * Math.PI) / 180)
@@ -905,15 +905,15 @@ Clear Floor Mask
                     </clipPath>
                     {/* V5: perspective-aware vertical gloss (Fresnel) */}
                     <linearGradient id="glossGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="white" stopOpacity={0.65} />
-                      <stop offset="40%" stopColor="white" stopOpacity={0.35} />
-                      <stop offset="70%" stopColor="white" stopOpacity={0.30} />
+                      <stop offset="0%" stopColor="white" stopOpacity={0.48} />
+                      <stop offset="40%" stopColor="white" stopOpacity={0.24} />
+                      <stop offset="70%" stopColor="white" stopOpacity={0.16} />
                       <stop offset="100%" stopColor="white" stopOpacity={0.0} />
                     </linearGradient>
                     {/* V5: centered specular hotspot in upper floor area */}
                     <radialGradient id="glossSpot" cx="50%" cy="25%" r="50%">
-                      <stop offset="0%" stopColor="white" stopOpacity={0.70} />
-                      <stop offset="40%" stopColor="white" stopOpacity={0.30} />
+                      <stop offset="0%" stopColor="white" stopOpacity={0.48} />
+                      <stop offset="40%" stopColor="white" stopOpacity={0.18} />
                       <stop offset="100%" stopColor="white" stopOpacity={0.0} />
                     </radialGradient>
                   </defs>
