@@ -190,16 +190,16 @@ function App() {
 
   const exportFlakes = useMemo(
     () => [
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-macro`, 100000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.6, h: f.h * 1.6 })),
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-micro`, 220000, flakeTones.length).map((f) => ({ ...f, w: f.w * 0.9, h: f.h * 0.9 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-macro`, 90000, flakeTones.length).map((f) => ({ ...f, w: f.w * 2.25, h: f.h * 2.25 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-micro`, 160000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.05, h: f.h * 1.05 })),
     ],
     [selectedSolid, selectedFlake, flakeTones.length],
   )
 
   const liveFlakes = useMemo(
     () => [
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-macro`, isMobilePreview ? 28000 : 100000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.6, h: f.h * 1.6 })),
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-micro`, isMobilePreview ? 45000 : 220000, flakeTones.length).map((f) => ({ ...f, w: f.w * 0.9, h: f.h * 0.9 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-macro`, isMobilePreview ? 24000 : 90000, flakeTones.length).map((f) => ({ ...f, w: f.w * 2.25, h: f.h * 2.25 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-micro`, isMobilePreview ? 32000 : 160000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.05, h: f.h * 1.05 })),
     ],
     [selectedSolid, selectedFlake, flakeTones.length, isMobilePreview],
   )
@@ -338,8 +338,8 @@ function App() {
     if (selectedFlake !== 'None') {
       for (const d of flakes) {
         const pScale = perspectiveScale(d.y)
-        const fw = Math.max(1, d.w * pScale * (w / 100))
-        const fh = Math.max(1, d.h * pScale * (w / 100))
+        const fw = Math.max(1.35, d.w * pScale * (w / 100))
+        const fh = Math.max(1.1, d.h * pScale * (w / 100))
         const px = (d.x / 100) * w
         const py = (d.y / 100) * h
         const color = adjustBrightness(flakeTones[d.c], d.bright)

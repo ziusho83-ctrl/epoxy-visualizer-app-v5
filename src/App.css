@@ -20,9 +20,9 @@ input[type='range'] { width: 180px; padding: 0; accent-color: #62e7c8; }
 .mask-dot:active { cursor: grabbing; }
 .mask-fill { fill: rgba(63, 203, 162, 0.24); stroke: #62e7c8; stroke-width: 0.5; pointer-events: none; }
 .overlay-base { opacity: 1; }
-.overlay-wet { opacity: 0.10; }
-.overlay-gloss { opacity: 0.58; mix-blend-mode: screen; }
-.overlay-gloss-spot { opacity: 0.42; mix-blend-mode: screen; }
+.overlay-wet { opacity: 0.08; }
+.overlay-gloss { opacity: 0.46; mix-blend-mode: screen; }
+.overlay-gloss-spot { opacity: 0.30; mix-blend-mode: screen; }
 .compare-stage { overflow: hidden; }
 .after-layer { position: absolute; inset: 0; overflow: hidden; }
 .after-preview { width: 100%; height: auto; }
