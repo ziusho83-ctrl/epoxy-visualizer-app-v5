@@ -705,7 +705,7 @@ function App() {
       const dataUrl = canvas.toDataURL('image/png')
       await saveDataUrlWithFallback(dataUrl, filename)
     } catch {
-      alert('Save/share failed on this device. Please screenshot for now, and I will patch further.')
+      alert('We could not save or share on this device just yet. Please take a screenshot for now, and we can improve this in the next update.')
     }
   }
 
@@ -734,17 +734,17 @@ function App() {
             setAutoMaskStatus('')
           }}
         />
-        {!imageUrl && <p className="muted">No image yet.</p>}
+        {!imageUrl && <p className="muted">Please upload a photo to begin.</p>}
       </section>
 
       <section className="card">
         <h2>2) Floor Mask Tool (Polygon)</h2>
-        <p className="muted">Tap points around the floor boundary. Use clear/undo to adjust.</p>
+        <p className="muted">Please tap points around the floor boundary. You can use Undo or Clear to make adjustments.</p>
         {imageUrl ? (
           <>
             <div className="row">
               <button onClick={() => void autoDetectFloorMask()} disabled={autoMaskLoading}>
-                {autoMaskLoading ? 'Detecting…' : 'Auto Detect Floor (Beta)'}
+                {autoMaskLoading ? 'Detecting…' : 'Auto-Detect Floor (Beta)'}
               </button>
               <button
                 onClick={() => {
@@ -753,7 +753,7 @@ function App() {
                 }}
                 disabled={!maskPoints.length}
               >
-                Undo point
+Undo Last Point
               </button>
               <button
                 onClick={() => {
@@ -762,7 +762,7 @@ function App() {
                 }}
                 disabled={!maskPoints.length}
               >
-                Clear mask
+Clear Floor Mask
               </button>
             </div>
             <div
@@ -816,11 +816,11 @@ function App() {
                 ))}
               </svg>
             </div>
-            <small>{maskPoints.length} point(s) selected • Mode: {maskMode === 'auto' ? 'Auto' : 'Manual'}</small>
+            <small>{maskPoints.length} point(s) selected • Selection mode: {maskMode === 'auto' ? 'Auto' : 'Manual'}</small>
             {autoMaskStatus && <small className="muted">{autoMaskStatus}</small>}
           </>
         ) : (
-          <p className="muted">Upload a photo first.</p>
+          <p className="muted">Please upload a photo first.</p>
         )}
       </section>
 
@@ -854,7 +854,7 @@ function App() {
           </label>
         </div>
 
-        <p className="badge">Selected finish: {finishLabel} • High-gloss</p>
+        <p className="badge">Selected finish: {finishLabel} • High-gloss appearance</p>
       </section>
 
       <section className="card">
@@ -866,12 +866,12 @@ function App() {
           <img src="/luxshield-logo.png" alt="LuxShield mark" className="section-logo" />
         </div>
         <div className="row" style={{ marginTop: 8 }}>
-          <span className="muted">Preview/export quality: Ultra.</span>
+          <span className="muted">Preview and export quality: Ultra.</span>
         </div>
         {imageUrl ? (
           <>
             <div className="row">
-              <label className="slider-label">Before / After: {compare}%</label>
+              <label className="slider-label">Before / After Preview: {compare}%</label>
               <input type="range" min={0} max={100} value={compare} onChange={(e) => setCompare(Number(e.target.value))} />
               <input
                 type="number"
@@ -884,8 +884,8 @@ function App() {
                 }}
                 style={{ width: 86 }}
               />
-              <button onClick={() => exportPreviewImage('comparison')}>Save/Share Comparison</button>
-              <button onClick={() => exportPreviewImage('after')}>Save/Share After</button>
+              <button onClick={() => exportPreviewImage('comparison')}>Save or Share Comparison</button>
+              <button onClick={() => exportPreviewImage('after')}>Save or Share Final Preview</button>
             </div>
 
             <div className="stage compare-stage" ref={compareRef}>
@@ -996,7 +996,7 @@ function App() {
             </div>
           </>
         ) : (
-          <p className="muted">Upload image to preview.</p>
+          <p className="muted">Please upload an image to view the preview.</p>
         )}
       </section>
 
@@ -1004,7 +1004,7 @@ function App() {
 
         <h2>5) Client Quote Request Form</h2>
         <div className="section-accent" />
-        <p className="muted">Use this for website leads: visualize first, then submit for a formal quote follow-up.</p>
+        <p className="muted">Please use this form for website leads after creating a visualization, so we can follow up with a formal quote.</p>
         <div className="row two-col" style={{ marginTop: 10 }}>
           <label className="field-inline">
             <span>Customer Name *</span>
@@ -1038,7 +1038,7 @@ function App() {
           </label>
         </div>
         <div className="row">
-          <button onClick={submitQuoteRequest} disabled={submittingQuote}>{submittingQuote ? 'Submitting...' : 'Submit Quote Request'}</button>
+          <button onClick={submitQuoteRequest} disabled={submittingQuote}>{submittingQuote ? 'Submitting...' : 'Submit Quote Request for Review'}</button>
           <span className="muted">Endpoint: {QUOTE_WEBHOOK_URL}</span>
         </div>
         {quoteStatus && <p className="status-msg">{quoteStatus}</p>}
@@ -1059,7 +1059,7 @@ function App() {
         </div>
         <div className="row" style={{ marginTop: 8 }}>
           <button onClick={exportQuoteCard} disabled={!isQuoteReady}>Export Digital Visualization</button>
-          {!isQuoteReady && <span className="muted">Fill #5 (name + phone/email) and upload a photo first.</span>}
+          {!isQuoteReady && <span className="muted">Please complete Section 5 (name and phone or email) and upload a photo first.</span>}
         </div>
       </section>
 
