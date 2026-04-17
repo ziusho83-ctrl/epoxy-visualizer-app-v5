@@ -68,7 +68,7 @@ const flakeToneMap: Record<string, string[]> = {
 }
 
 const solidBaseMap: Record<string, string> = {
-  Grey: '#7d8289',
+  Grey: '#8a8e94',
   Tan: '#a88c6e',
   Charcoal: '#454850',
 }
@@ -183,7 +183,7 @@ function App() {
   }, [maskPoints])
 
   const flakeTones = flakeToneMap[selectedFlake] ?? ['#d0d4db', '#8f96a4', '#59606f']
-  const baseSolidRaw = solidBaseMap[selectedSolid] ?? '#7d8289'
+  const baseSolidRaw = solidBaseMap[selectedSolid] ?? '#8a8e94'
   // V5: deepened base for wet-look clear-coat effect
   const baseSolid = deepenColor(baseSolidRaw)
 
@@ -193,7 +193,7 @@ function App() {
   )
 
   const liveFlakes = useMemo(
-    () => seededFlakes(`${selectedSolid}-${selectedFlake}-live`, isMobilePreview ? 35000 : 80000, flakeTones.length),
+    () => seededFlakes(`${selectedSolid}-${selectedFlake}-live`, isMobilePreview ? 16000 : 80000, flakeTones.length),
     [selectedSolid, selectedFlake, flakeTones.length, isMobilePreview],
   )
 
@@ -824,19 +824,31 @@ function App() {
         <h2>3) Finish Selection</h2>
 
         <div className="row two-col" style={{ marginTop: 10 }}>
-          <label className="field-inline">
+          <div className="field-inline">
             <span>Solid Base (Opaque)</span>
-            <select value={selectedSolid} onChange={(e) => setSelectedSolid(e.target.value)}>
-              {solidColors.map((c) => <option key={c}>{c}</option>)}
-            </select>
-          </label>
-          <label className="field-inline">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <select value={selectedSolid} onChange={(e) => setSelectedSolid(e.target.value)}>
+                {solidColors.map((c) => <option key={c}>{c}</option>)}
+              </select>
+              <span className="color-swatch" style={{ background: baseSolidRaw }} />
+            </div>
+          </div>
+          <div className="field-inline">
             <span>Flake Blend</span>
-            <select value={selectedFlake} onChange={(e) => setSelectedFlake(e.target.value)}>
-              <option value="None">None</option>
-              {flakeBlends.map((f) => <option key={f}>{f}</option>)}
-            </select>
-          </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <select value={selectedFlake} onChange={(e) => setSelectedFlake(e.target.value)}>
+                <option value="None">None</option>
+                {flakeBlends.map((f) => <option key={f}>{f}</option>)}
+              </select>
+              {flakeTones.length > 0 && (
+                <span className="flake-swatch" style={{ display: 'flex', borderRadius: 4, overflow: 'hidden', height: 24, flexShrink: 0 }}>
+                  {flakeTones.map((t, i) => (
+                    <span key={i} style={{ background: t, width: 14, height: 24 }} />
+                  ))}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
         <p className="badge">Selected finish: {finishLabel} • High-gloss</p>
