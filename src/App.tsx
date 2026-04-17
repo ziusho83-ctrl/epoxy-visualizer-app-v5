@@ -858,42 +858,9 @@ Clear Floor Mask
       </section>
 
       <section className="card">
-        <h2>3) Finish Selection</h2>
-        <div className="section-accent" />
-
-        <div className="row two-col" style={{ marginTop: 10 }}>
-          <label className="field-inline">
-            <span>Solid Base (Opaque)</span>
-            <div className="select-with-swatch">
-              <select value={selectedSolid} onChange={(e) => setSelectedSolid(e.target.value)}>
-                {solidColors.map((c) => <option key={c}>{c}</option>)}
-              </select>
-              <span className="color-swatch" style={{ background: baseSolidRaw }} />
-            </div>
-          </label>
-          <label className="field-inline">
-            <span>Flake Blend</span>
-            <select value={selectedFlake} onChange={(e) => setSelectedFlake(e.target.value)}>
-              <option value="None">None</option>
-              {flakeBlends.map((f) => <option key={f}>{f}</option>)}
-            </select>
-            {flakeTones.length > 0 && selectedFlake !== 'None' && (
-              <div className="flake-swatch" aria-label="Selected flake tones">
-                {flakeTones.slice(0, 3).map((tone, i) => (
-                  <span key={`${tone}-${i}`} style={{ background: tone }} />
-                ))}
-              </div>
-            )}
-          </label>
-        </div>
-
-        <p className="badge">Selected finish: {finishLabel} • High-gloss appearance</p>
-      </section>
-
-      <section className="card tight-next">
         <div className="section-title-row">
           <div>
-            <h2>4) Before/After Slider + Gloss Preview</h2>
+            <h2>3) Finish Selection + Live Preview</h2>
             <div className="section-accent" />
           </div>
           <img src="/luxshield-logo.png" alt="LuxShield mark" className="section-logo" />
@@ -913,14 +880,12 @@ Clear Floor Mask
                     <clipPath id="floorClip">
                       {maskPoints.length >= 3 && <polygon points={insetPolygonPointsAttr} />}
                     </clipPath>
-                    {/* V5: perspective-aware vertical gloss (Fresnel) */}
                     <linearGradient id="glossGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="white" stopOpacity={0.48} />
                       <stop offset="40%" stopColor="white" stopOpacity={0.24} />
                       <stop offset="70%" stopColor="white" stopOpacity={0.16} />
                       <stop offset="100%" stopColor="white" stopOpacity={0.0} />
                     </linearGradient>
-                    {/* V5: centered specular hotspot in upper floor area */}
                     <radialGradient id="glossSpot" cx="50%" cy="25%" r="50%">
                       <stop offset="0%" stopColor="white" stopOpacity={0.48} />
                       <stop offset="40%" stopColor="white" stopOpacity={0.18} />
@@ -955,7 +920,6 @@ Clear Floor Mask
                     </g>
                   )}
 
-                  {/* V5: wet-look darkening layer (clear coat deepens color under glass) */}
                   {maskPoints.length >= 3 && (
                     <polygon className="overlay-wet" points={polygonPointsAttr} fill="black" />
                   )}
@@ -963,7 +927,6 @@ Clear Floor Mask
                   {maskPoints.length >= 3 && <polygon className="overlay-gloss" points={polygonPointsAttr} fill="url(#glossGradient)" />}
                   {maskPoints.length >= 3 && <polygon className="overlay-gloss-spot" points={polygonPointsAttr} fill="url(#glossSpot)" />}
 
-                  {/* V5: flake specularity — white highlights on medium+ flakes in upper floor */}
                   {maskPoints.length >= 3 && selectedFlake !== 'None' && (
                     <g clipPath="url(#floorClip)">
                       {liveFlakes.map((d, i) => {
@@ -989,13 +952,39 @@ Clear Floor Mask
                       })}
                     </g>
                   )}
-
-
                 </svg>
               </div>
 
               <div className="compare-handle" style={{ left: `${compare}%` }} />
             </div>
+
+            <div className="row two-col" style={{ marginTop: 14 }}>
+              <label className="field-inline">
+                <span>Solid Base (Opaque)</span>
+                <div className="select-with-swatch">
+                  <select value={selectedSolid} onChange={(e) => setSelectedSolid(e.target.value)}>
+                    {solidColors.map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                  <span className="color-swatch" style={{ background: baseSolidRaw }} />
+                </div>
+              </label>
+              <label className="field-inline">
+                <span>Flake Blend</span>
+                <select value={selectedFlake} onChange={(e) => setSelectedFlake(e.target.value)}>
+                  <option value="None">None</option>
+                  {flakeBlends.map((f) => <option key={f}>{f}</option>)}
+                </select>
+                {flakeTones.length > 0 && selectedFlake !== 'None' && (
+                  <div className="flake-swatch" aria-label="Selected flake tones">
+                    {flakeTones.slice(0, 4).map((tone, i) => (
+                      <span key={`${tone}-${i}`} style={{ background: tone }} />
+                    ))}
+                  </div>
+                )}
+              </label>
+            </div>
+
+            <p className="badge">Selected finish: {finishLabel} • High-gloss appearance</p>
 
             <div className="row" style={{ marginTop: 12 }}>
               <label className="slider-label">Before / After Preview: {compare}%</label>
@@ -1022,7 +1011,7 @@ Clear Floor Mask
 
       <section className="card">
 
-        <h2>5) Client Quote Request Form</h2>
+        <h2>4) Client Quote Request Form</h2>
         <div className="section-accent" />
         <p className="muted">Please use this form for website leads after creating a visualization, so we can follow up with a formal quote.</p>
         <div className="row two-col" style={{ marginTop: 10 }}>
@@ -1065,7 +1054,7 @@ Clear Floor Mask
       </section>
 
       <section className="card">
-        <h2>6) Quote Export</h2>
+        <h2>5) Quote Export</h2>
         <div className="section-accent" />
         <div className="row two-col" style={{ marginTop: 10 }}>
           <label className="field-inline">
@@ -1079,7 +1068,7 @@ Clear Floor Mask
         </div>
         <div className="row" style={{ marginTop: 8 }}>
           <button onClick={exportQuoteCard} disabled={!isQuoteReady}>Export Digital Visualization</button>
-          {!isQuoteReady && <span className="muted">Please complete Section 5 (name and phone or email) and upload a photo first.</span>}
+          {!isQuoteReady && <span className="muted">Please complete Section 4 (name and phone or email) and upload a photo first.</span>}
         </div>
       </section>
 
