@@ -711,9 +711,13 @@ function App() {
 
   return (
     <main className="wrap">
-      <header>
-        <h1>Epoxy Visualizer V5 • Grounded SAM</h1>
-        <p>Mobile-first before/after preview builder for garage flooring.</p>
+      <header className="brand-header">
+        <div className="brand-copy">
+          <p className="brand-kicker">LuxShield Coatings</p>
+          <h1>Epoxy Visualizer V5</h1>
+          <p>Shielding surfaces with lasting beauty.</p>
+        </div>
+        <img src="/luxshield-logo.png" alt="LuxShield Coatings logo" className="brand-logo" />
       </header>
 
       <section className="card">
@@ -822,13 +826,17 @@ function App() {
 
       <section className="card">
         <h2>3) Finish Selection</h2>
+        <div className="section-accent" />
 
         <div className="row two-col" style={{ marginTop: 10 }}>
           <label className="field-inline">
             <span>Solid Base (Opaque)</span>
-            <select value={selectedSolid} onChange={(e) => setSelectedSolid(e.target.value)}>
-              {solidColors.map((c) => <option key={c}>{c}</option>)}
-            </select>
+            <div className="select-with-swatch">
+              <select value={selectedSolid} onChange={(e) => setSelectedSolid(e.target.value)}>
+                {solidColors.map((c) => <option key={c}>{c}</option>)}
+              </select>
+              <span className="color-swatch" style={{ background: baseSolidRaw }} />
+            </div>
           </label>
           <label className="field-inline">
             <span>Flake Blend</span>
@@ -836,6 +844,13 @@ function App() {
               <option value="None">None</option>
               {flakeBlends.map((f) => <option key={f}>{f}</option>)}
             </select>
+            {flakeTones.length > 0 && selectedFlake !== 'None' && (
+              <div className="flake-swatch" aria-label="Selected flake tones">
+                {flakeTones.slice(0, 3).map((tone, i) => (
+                  <span key={`${tone}-${i}`} style={{ background: tone }} />
+                ))}
+              </div>
+            )}
           </label>
         </div>
 
@@ -843,7 +858,13 @@ function App() {
       </section>
 
       <section className="card">
-        <h2>4) Before/After Slider + Gloss Preview</h2>
+        <div className="section-title-row">
+          <div>
+            <h2>4) Before/After Slider + Gloss Preview</h2>
+            <div className="section-accent" />
+          </div>
+          <img src="/luxshield-logo.png" alt="LuxShield mark" className="section-logo" />
+        </div>
         <div className="row" style={{ marginTop: 8 }}>
           <span className="muted">Preview/export quality: Ultra.</span>
         </div>
@@ -982,6 +1003,7 @@ function App() {
       <section className="card">
 
         <h2>5) Client Quote Request Form</h2>
+        <div className="section-accent" />
         <p className="muted">Use this for website leads: visualize first, then submit for a formal quote follow-up.</p>
         <div className="row two-col" style={{ marginTop: 10 }}>
           <label className="field-inline">
@@ -1024,6 +1046,7 @@ function App() {
 
       <section className="card">
         <h2>6) Quote Export</h2>
+        <div className="section-accent" />
         <div className="row two-col" style={{ marginTop: 10 }}>
           <label className="field-inline">
             <span>Company Name</span>
