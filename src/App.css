@@ -70,16 +70,3 @@ input[type='range'] { width: 180px; padding: 0; }
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-
-.color-swatch {
-  display: inline-block;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  border: 1px solid #555;
-  flex-shrink: 0;
-}
-.flake-swatch {
-  display: inline-flex;
-  flex-shrink: 0;
-}
