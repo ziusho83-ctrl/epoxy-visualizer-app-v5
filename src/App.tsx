@@ -698,8 +698,10 @@ function App() {
       img.src = imageUrl
       await img.decode()
 
-      const w = img.naturalWidth
-      const h = img.naturalHeight
+      const maxDim = 1600
+      const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight))
+      const w = Math.max(1, Math.round(img.naturalWidth * scale))
+      const h = Math.max(1, Math.round(img.naturalHeight * scale))
 
       const afterCanvas = document.createElement('canvas')
       afterCanvas.width = w
