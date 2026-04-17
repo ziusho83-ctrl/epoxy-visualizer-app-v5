@@ -57,7 +57,7 @@ function deepenColor(hex: string): string {
 
 const flakeToneMap: Record<string, string[]> = {
   // tuned per latest direction
-  Stonewash: ['#b5c8e6', '#6186bd', '#1f4578'], // same profile as previous Orbit
+  Stonewash: ['#d5e4f3', '#6f95c9', '#173e72'], // brighter white-blue contrast for clearer flake read
   Nightfall: ['#9ca3af', '#4b5563', '#1f2937'], // more charcoal + black
   Orbit: ['#1f4578', '#1f4578', '#2b5b99', '#111111', '#f4f4f4', '#c9ced6'], // ~50% blue bias + black/white/light grey
   Outback: ['#e8dccf', '#8b6a4d', '#2b2219'], // more brown + black
@@ -190,16 +190,16 @@ function App() {
 
   const exportFlakes = useMemo(
     () => [
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-macro`, 110000, flakeTones.length).map((f) => ({ ...f, w: f.w * 5.0, h: f.h * 5.0 })),
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-micro`, 240000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.8, h: f.h * 1.8 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-macro`, 110000, flakeTones.length).map((f) => ({ ...f, w: f.w * 5.8, h: f.h * 5.8 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-micro`, 180000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.8, h: f.h * 1.8 })),
     ],
     [selectedSolid, selectedFlake, flakeTones.length],
   )
 
   const liveFlakes = useMemo(
     () => [
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-macro`, isMobilePreview ? 32000 : 110000, flakeTones.length).map((f) => ({ ...f, w: f.w * 5.0, h: f.h * 5.0 })),
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-micro`, isMobilePreview ? 52000 : 240000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.8, h: f.h * 1.8 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-macro`, isMobilePreview ? 32000 : 110000, flakeTones.length).map((f) => ({ ...f, w: f.w * 5.8, h: f.h * 5.8 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-micro`, isMobilePreview ? 38000 : 180000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.8, h: f.h * 1.8 })),
     ],
     [selectedSolid, selectedFlake, flakeTones.length, isMobilePreview],
   )
