@@ -903,24 +903,6 @@ Clear Floor Mask
         </div>
         {imageUrl ? (
           <>
-            <div className="row">
-              <label className="slider-label">Before / After Preview: {compare}%</label>
-              <input type="range" min={0} max={100} value={compare} onChange={(e) => setCompare(Number(e.target.value))} />
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={compare}
-                onChange={(e) => {
-                  const v = Number(e.target.value)
-                  setCompare(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0)
-                }}
-                style={{ width: 86 }}
-              />
-              <button onClick={() => exportPreviewImage('comparison')}>Save or Share Comparison</button>
-              <button onClick={() => exportPreviewImage('after')}>Save or Share Final Preview</button>
-            </div>
-
             <div className="stage compare-stage" ref={compareRef}>
               <img src={imageUrl} alt="garage before" className="preview" />
 
@@ -1013,6 +995,24 @@ Clear Floor Mask
               </div>
 
               <div className="compare-handle" style={{ left: `${compare}%` }} />
+            </div>
+
+            <div className="row" style={{ marginTop: 12 }}>
+              <label className="slider-label">Before / After Preview: {compare}%</label>
+              <input type="range" min={0} max={100} value={compare} onChange={(e) => setCompare(Number(e.target.value))} />
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={compare}
+                onChange={(e) => {
+                  const v = Number(e.target.value)
+                  setCompare(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0)
+                }}
+                style={{ width: 86 }}
+              />
+              <button onClick={() => exportPreviewImage('comparison')}>Save or Share Comparison</button>
+              <button onClick={() => exportPreviewImage('after')}>Save or Share Final Preview</button>
             </div>
           </>
         ) : (
