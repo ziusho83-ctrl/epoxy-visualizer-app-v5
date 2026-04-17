@@ -131,6 +131,7 @@ function App() {
   const [maskMode, setMaskMode] = useState<'manual' | 'auto'>('manual')
   const [autoMaskStatus, setAutoMaskStatus] = useState('')
   const [autoMaskLoading, setAutoMaskLoading] = useState(false)
+  const [autoDetectSuccess, setAutoDetectSuccess] = useState(false)
   const [compare, setCompare] = useState(100)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [projectName] = useState('')
@@ -297,11 +298,13 @@ function App() {
       const totalTime = Math.round((Date.now() - startTime) / 1000)
       setMaskPoints(data.points)
       setMaskMode('auto')
-      setAutoMaskStatus(`AI floor mask applied (${data.points.length} points) in ${totalTime}s. Drag points to fine-tune.`)
+      setAutoDetectSuccess(true)
+      setAutoMaskStatus(`AI floor mask applied successfully (${data.points.length} points) in ${totalTime}s. Manual editing is now locked to avoid accidental changes.`)
     } catch (err) {
       clearInterval(timerInterval)
       console.error('Auto-mask failed:', err)
-      setAutoMaskStatus(`AI detection failed: ${(err as Error).message}. Use manual points for now.`)
+      setAutoDetectSuccess(false)
+      setAutoMaskStatus(`AI detection failed: ${(err as Error).message}. You can place points manually if needed.`)
     } finally {
       setAutoMaskLoading(false)
     }
@@ -405,17 +408,6 @@ function App() {
         ctx.fill()
       }
     }
-
-    // LuxShield logo watermark
-    try {
-      const logoImg = new Image()
-      logoImg.src = "/luxshield-logo.png"
-      const logoW = w * 0.10
-      const logoH = logoW
-      ctx.globalAlpha = 0.35
-      ctx.drawImage(logoImg, w * 0.85, h * 0.85, logoW, logoH)
-      ctx.globalAlpha = 1
-    } catch (_) { /* logo not loaded yet, skip */ }
 
 
     ctx.restore()
@@ -739,6 +731,7 @@ function App() {
             setMaskPoints([])
             setMaskMode('manual')
             setAutoMaskStatus('')
+            setAutoDetectSuccess(false)
           }}
         />
         {!imageUrl && <p className="muted">Please upload a photo to begin.</p>}
@@ -746,7 +739,7 @@ function App() {
 
       <section className="card">
         <h2>2) Floor Mask Tool (Polygon)</h2>
-        <p className="muted">Please tap points around the floor boundary. You can use Undo or Clear to make adjustments.</p>
+        <p className="muted">Please start with Auto-Detect Floor first. If AI detection does not map the floor correctly, you can then use manual point adjustments.</p>
         {imageUrl ? (
           <>
             <div className="row">
@@ -757,8 +750,9 @@ function App() {
                 onClick={() => {
                   setMaskPoints((pts) => pts.slice(0, -1))
                   setMaskMode('manual')
+                  setAutoDetectSuccess(false)
                 }}
-                disabled={!maskPoints.length}
+                disabled={!maskPoints.length || autoDetectSuccess}
               >
 Undo Last Point
               </button>
@@ -766,6 +760,7 @@ Undo Last Point
                 onClick={() => {
                   setMaskPoints([])
                   setMaskMode('manual')
+                  setAutoDetectSuccess(false)
                 }}
                 disabled={!maskPoints.length}
               >
@@ -777,6 +772,7 @@ Clear Floor Mask
               onPointerDown={(e) => {
                 const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
 
+                if (autoDetectSuccess) return
                 if (dragIndex !== null) return
                 const target = e.target as HTMLElement
                 if (target.dataset.point === 'mask-dot') return
@@ -786,6 +782,7 @@ Clear Floor Mask
               onPointerMove={(e) => {
                 const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
 
+                if (autoDetectSuccess) return
                 if (dragIndex === null) return
                 updateMaskPoint(dragIndex, e.clientX, e.clientY, rect)
                 setMaskMode('manual')
@@ -816,6 +813,7 @@ Clear Floor Mask
                     className="mask-dot"
                     data-point="mask-dot"
                     onPointerDown={(e) => {
+                      if (autoDetectSuccess) return
                       e.stopPropagation()
                       setDragIndex(idx)
                     }}
@@ -981,20 +979,6 @@ Clear Floor Mask
                     </g>
                   )}
 
-                  {/* LuxShield Coatings logo watermark — rendered on top of everything */}
-                  {maskPoints.length >= 3 && (
-                    <g clipPath="url(#floorClip)">
-                      <image
-                        href="/luxshield-logo.png"
-                        x="82"
-                        y="82"
-                        width="12"
-                        height="12"
-                        opacity="0.45"
-                        preserveAspectRatio="xMidYMid meet"
-                      />
-                    </g>
-                  )}
 
                 </svg>
               </div>
