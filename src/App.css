@@ -15,6 +15,9 @@ input[type='range'] { width: 180px; padding: 0; accent-color: #62e7c8; }
 .field-inline span { font-size: 0.85rem; color: #d8c2b0; }
 .preview { width: 100%; border-radius: 18px; border: 1px solid rgba(98, 231, 200, 0.22); display: block; }
 .stage { position: relative; margin-top: 10px; }
+.configurator-card .stage { margin-top: 8px; }
+.configurator-card .row.two-col { margin-top: 10px !important; }
+.configurator-card .badge { margin-top: 10px; }
 .mask-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: auto; }
 .mask-line { stroke: #66c2ff; stroke-width: 0.6; pointer-events: none; }
 .mask-dot { fill: #ffffff; stroke: #66c2ff; stroke-width: 0.3; cursor: grab; }
@@ -85,4 +88,11 @@ input[type='range'] { width: 180px; padding: 0; accent-color: #62e7c8; }
   .section-title-row { align-items: flex-start; }
   .section-logo { width: 56px; height: 56px; }
   .brand-logo { width: 72px; height: 72px; }
+  .configurator-card .compare-stage { max-height: 44vh; overflow: hidden; border-radius: 18px; }
+  .configurator-card .preview { object-fit: cover; }
+  .configurator-card .row { gap: 6px; margin-bottom: 6px; }
+  .configurator-card button,
+  .configurator-card select,
+  .configurator-card input,
+  .configurator-card textarea { padding: 10px 11px; }
 }

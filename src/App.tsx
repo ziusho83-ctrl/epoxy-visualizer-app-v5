@@ -857,7 +857,7 @@ Clear Floor Mask
         )}
       </section>
 
-      <section className="card">
+      <section className="card configurator-card">
         <div className="section-title-row">
           <div>
             <h2>3) Finish Selection + Live Preview</h2>
