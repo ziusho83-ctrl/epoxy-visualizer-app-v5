@@ -20,6 +20,7 @@ input[type='range'] { width: 180px; padding: 0; accent-color: #62e7c8; }
 .mask-dot:active { cursor: grabbing; }
 .mask-fill { fill: rgba(63, 203, 162, 0.24); stroke: #62e7c8; stroke-width: 0.5; pointer-events: none; }
 .overlay-base { opacity: 1; }
+.overlay-blend-wash { opacity: 0.28; }
 .overlay-wet { opacity: 0.05; }
 .overlay-gloss { opacity: 0.38; mix-blend-mode: screen; }
 .overlay-gloss-spot { opacity: 0.22; mix-blend-mode: screen; }

@@ -114,6 +114,21 @@ function adjustBrightness(hex: string, factor: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
+function blendAverage(hexes: string[]): string {
+  if (!hexes.length) return '#888888'
+  const totals = hexes.reduce(
+    (acc, hex) => {
+      acc.r += parseInt(hex.slice(1, 3), 16)
+      acc.g += parseInt(hex.slice(3, 5), 16)
+      acc.b += parseInt(hex.slice(5, 7), 16)
+      return acc
+    },
+    { r: 0, g: 0, b: 0 },
+  )
+  const n = hexes.length
+  return `#${Math.round(totals.r / n).toString(16).padStart(2, '0')}${Math.round(totals.g / n).toString(16).padStart(2, '0')}${Math.round(totals.b / n).toString(16).padStart(2, '0')}`
+}
+
 function perspectiveScale(y: number): number {
   return 0.5 + (y / 100) * 1.0
 }
@@ -187,6 +202,11 @@ function App() {
   const baseSolidRaw = solidBaseMap[selectedSolid] ?? '#7d8289'
   // V5: deepened base for wet-look clear-coat effect
   const baseSolid = deepenColor(baseSolidRaw)
+  const flakeBlendWash = useMemo(() => {
+    if (selectedFlake === 'None') return baseSolid
+    const avg = blendAverage(flakeTones)
+    return deepenColor(avg)
+  }, [selectedFlake, flakeTones, baseSolid])
 
   const exportFlakes = useMemo(
     () => [
@@ -333,6 +353,14 @@ function App() {
     ctx.fillStyle = baseSolid
     ctx.fillRect(0, 0, w, h)
     ctx.globalAlpha = 1
+
+    // Semi-transparent blend wash between base coat and flakes for fuller coverage
+    if (selectedFlake !== 'None') {
+      ctx.globalAlpha = 0.28
+      ctx.fillStyle = flakeBlendWash
+      ctx.fillRect(0, 0, w, h)
+      ctx.globalAlpha = 1
+    }
 
     // Realistic flake broadcast with perspective scaling
     if (selectedFlake !== 'None') {
@@ -919,6 +947,7 @@ Clear Floor Mask
                   </defs>
 
                   {maskPoints.length >= 3 && <polygon className="overlay-base" points={polygonPointsAttr} fill={baseSolid} />}
+                  {maskPoints.length >= 3 && selectedFlake !== 'None' && <polygon className="overlay-blend-wash" points={polygonPointsAttr} fill={flakeBlendWash} />}
 
                   {maskPoints.length >= 3 && selectedFlake !== 'None' && (
                     <g clipPath="url(#floorClip)">
