@@ -68,7 +68,7 @@ const flakeToneMap: Record<string, string[]> = {
 }
 
 const solidBaseMap: Record<string, string> = {
-  Grey: '#7d8289',
+  Grey: '#8f98a3',
   Tan: '#a88c6e',
   Charcoal: '#454850',
 }
@@ -101,7 +101,7 @@ function seededFlakes(seed: string, count = 80000, toneCount = 3): Flake[] {
       h: baseH,
       angle: rand() * 360,
       c: Math.floor(rand() * toneCount),
-      bright: 0.93 + rand() * 0.14, // subtle brightness variation per chip
+      bright: 0.82 + rand() * 0.36, // stronger brightness variation so flake colors read clearly
     })
   }
   return flakes
@@ -190,16 +190,16 @@ function App() {
 
   const exportFlakes = useMemo(
     () => [
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-macro`, 90000, flakeTones.length).map((f) => ({ ...f, w: f.w * 2.25, h: f.h * 2.25 })),
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-micro`, 160000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.05, h: f.h * 1.05 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-macro`, 110000, flakeTones.length).map((f) => ({ ...f, w: f.w * 2.5, h: f.h * 2.5 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-micro`, 240000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.2, h: f.h * 1.2 })),
     ],
     [selectedSolid, selectedFlake, flakeTones.length],
   )
 
   const liveFlakes = useMemo(
     () => [
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-macro`, isMobilePreview ? 24000 : 90000, flakeTones.length).map((f) => ({ ...f, w: f.w * 2.25, h: f.h * 2.25 })),
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-micro`, isMobilePreview ? 32000 : 160000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.05, h: f.h * 1.05 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-macro`, isMobilePreview ? 32000 : 110000, flakeTones.length).map((f) => ({ ...f, w: f.w * 2.5, h: f.h * 2.5 })),
+      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-micro`, isMobilePreview ? 52000 : 240000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.2, h: f.h * 1.2 })),
     ],
     [selectedSolid, selectedFlake, flakeTones.length, isMobilePreview],
   )
