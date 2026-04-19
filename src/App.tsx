@@ -58,9 +58,9 @@ function deepenColor(hex: string): string {
 const flakeToneMap: Record<string, string[]> = {
   // tuned from LuxShield reference photos
   Stonewash: ['#f4f5f4', '#d9d0c3', '#96abc1', '#6f849a', '#243857'],
-  Nightfall: ['#e0ddd8', '#c8c4be', '#9ca3af', '#6b7280', '#4b5563', '#1f1f1f'],
+  Nightfall: ['#9ca3af', '#4b5563', '#1f2937'],
   Orbit: ['#23467f', '#335f9e', '#f3f4f6', '#cfd5dd', '#111111'],
-  Outback: ['#f5f5f5', '#e8d5be', '#c8a07a', '#a07850', '#6b4530', '#1a1410'],
+  Outback: ['#e8dccf', '#8b6a4d', '#2b2219'],
   'Cabin Fever': ['#efe3cf', '#d8d2c7', '#faf8f4', '#1f1f1f'],
   'Tan Blend': ['#f4efe7', '#ddd2c2', '#c7bbab', '#b59652', '#8b4e32', '#3c302b'],
   'Tidal Wave': ['#eef1f0', '#d8ddd9', '#b9c7cd', '#7f97a6'],
