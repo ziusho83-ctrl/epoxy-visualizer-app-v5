@@ -57,7 +57,7 @@ function deepenColor(hex: string): string {
 
 const flakeToneMap: Record<string, string[]> = {
   // tuned from LuxShield reference photos
-  Stonewash: ['#ece7e0', '#c8c1b7', '#74869c', '#2b3f67'],
+  Stonewash: ['#f4f5f4', '#d9d0c3', '#96abc1', '#6f849a', '#243857'],
   Nightfall: ['#9ca3af', '#4b5563', '#1f2937'],
   Orbit: ['#23467f', '#335f9e', '#f3f4f6', '#cfd5dd', '#111111'],
   Outback: ['#e8dccf', '#8b6a4d', '#2b2219'],
@@ -65,6 +65,20 @@ const flakeToneMap: Record<string, string[]> = {
   'Tan Blend': ['#f4efe7', '#ddd2c2', '#c7bbab', '#b59652', '#8b4e32', '#3c302b'],
   'Tidal Wave': ['#eef1f0', '#d8ddd9', '#b9c7cd', '#7f97a6'],
   'Stony Creek': ['#f5f6f7', '#dfe3e6', '#c8cdd1', '#aeb5bb'],
+  Raven: ['#f5f5f4', '#d1d5db', '#4b5563', '#111111'],
+  Wombat: ['#f3f4f6', '#d1d5db', '#9ca3af', '#3f3f46'],
+  Gravel: ['#f8fafc', '#ded7ce', '#b8bec4', '#6b7280'],
+  Creekbed: ['#f5efe6', '#ddd1be', '#c8beb4', '#b08d43', '#8b5a3c', '#3b2f2a'],
+  Shoreline: ['#fbf7ef', '#eadfcb', '#d2b48c', '#2f2a26'],
+  Domino: ['#fafafa', '#d1d5db', '#111111'],
+  Carbon: ['#6b7280', '#4b5563', '#2f343b', '#111111'],
+  Basalt: ['#f5f6f7', '#d1d5db', '#9ca3af', '#6b7280'],
+  Garnet: ['#d6cdc4', '#c8b8a6', '#a8a29e', '#7c8b9c'],
+  Obsidian: ['#d8d1c7', '#c9b8a6', '#a5adb4', '#f1eee8'],
+  Madras: ['#f1e8d8', '#d6c0a2', '#9f8a73', '#5b5149'],
+  Shadow: ['#f8fafc', '#c7c7c7', '#a3a3a3'],
+  'California Gray': ['#faf7f0', '#ddd2bf', '#d1d5db', '#9a6040', '#111111'],
+  Dolerite: ['#d9cdbd', '#b6bec5', '#8b735f', '#7a8794', '#f2efe9'],
 }
 
 const solidBaseMap: Record<string, string> = {
