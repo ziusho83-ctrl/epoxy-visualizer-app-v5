@@ -152,6 +152,31 @@ const BRAND_TONE_1 = '#F6CCAA'
 const BRAND_TONE_2 = '#3FCBA2'
 const LOGO_PATH = '/logo-icon.png'
 
+const flakeThumbMap: Record<string, string> = {
+  Stonewash: '/flakes/stonewash.jpg',
+  Nightfall: '/flakes/nightfall.jpg',
+  Orbit: '/flakes/orbit.jpg',
+  Outback: '/flakes/outback.jpg',
+  'Cabin Fever': '/flakes/cabin-fever.jpg',
+  'Tan Blend': '/flakes/tan-blend.jpg',
+  'Tidal Wave': '/flakes/tidal-wave.jpg',
+  'Stony Creek': '/flakes/stony-creek.jpg',
+  Raven: '/flakes/raven.jpg',
+  Wombat: '/flakes/wombat.jpg',
+  Gravel: '/flakes/gravel.jpg',
+  Creekbed: '/flakes/creekbed.jpg',
+  Shoreline: '/flakes/shoreline.jpg',
+  Domino: '/flakes/domino.jpg',
+  Carbon: '/flakes/carbon.jpg',
+  Basalt: '/flakes/basalt.jpg',
+  Garnet: '/flakes/garnet.jpg',
+  Obsidian: '/flakes/obsidian.jpg',
+  Madras: '/flakes/madras.jpg',
+  Shadow: '/flakes/shadow.jpg',
+  'California Gray': '/flakes/california-gray.jpg',
+  Dolerite: '/flakes/dolerite.jpg',
+}
+
 function App() {
   const [selectedSolid, setSelectedSolid] = useState(solidColors[0])
   const [selectedFlake, setSelectedFlake] = useState<string>('Stonewash')
@@ -984,20 +1009,29 @@ Clear Floor Mask
                   <span className="color-swatch" style={{ background: baseSolidRaw }} />
                 </div>
               </label>
-              <label className="field-inline">
-                <span>Flake Blend</span>
-                <select value={selectedFlake} onChange={(e) => setSelectedFlake(e.target.value)}>
-                  <option value="None">None</option>
-                  {flakeBlends.map((f) => <option key={f}>{f}</option>)}
-                </select>
-                {flakeTones.length > 0 && selectedFlake !== 'None' && (
-                  <div className="flake-swatch" aria-label="Selected flake tones">
-                    {flakeTones.slice(0, 4).map((tone, i) => (
-                      <span key={`${tone}-${i}`} style={{ background: tone }} />
-                    ))}
-                  </div>
-                )}
-              </label>
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <span className="field-label">Flake Blend</span>
+              <div className="flake-grid">
+                <button
+                  className={`flake-grid-item${selectedFlake === 'None' ? ' active' : ''}`}
+                  onClick={() => setSelectedFlake('None')}
+                >
+                  <div className="flake-grid-thumb" style={{ background: baseSolidRaw, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: '#fff' }}>None</div>
+                  <span className="flake-grid-label">None</span>
+                </button>
+                {flakeBlends.map((f) => (
+                  <button
+                    key={f}
+                    className={`flake-grid-item${selectedFlake === f ? ' active' : ''}`}
+                    onClick={() => setSelectedFlake(f)}
+                  >
+                    <img className="flake-grid-thumb" src={flakeThumbMap[f] || ''} alt={f} loading="lazy" />
+                    <span className="flake-grid-label">{f}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             <p className="badge">Selected finish: {finishLabel} • High-gloss appearance</p>
