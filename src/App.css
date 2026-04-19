@@ -102,6 +102,4 @@ input[type='range'] { width: 180px; padding: 0; accent-color: #62e7c8; }
   .configurator-card select,
   .configurator-card input,
   .configurator-card textarea { padding: 10px 11px; }
-  .configurator-card .compare-stage { max-height: 50vh; }
-  .configurator-card .compare-stage .preview { max-height: 50vh; object-fit: contain; }
 }
