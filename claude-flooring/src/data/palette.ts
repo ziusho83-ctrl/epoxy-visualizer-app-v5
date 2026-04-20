@@ -1,0 +1,26 @@
+export const flakeBlends = [
+  'Stonewash',
+  'Nightfall',
+  'Orbit',
+  'Outback',
+  'Cabin Fever',
+  'Tan Blend',
+  'Tidal Wave',
+  'Stony Creek',
+  'Raven',
+  'Wombat',
+  'Gravel',
+  'Creekbed',
+  'Shoreline',
+  'Domino',
+  'Carbon',
+  'Basalt',
+  'Garnet',
+  'Obsidian',
+  'Madras',
+  'Shadow',
+  'California Gray',
+  'Dolerite',
+]
+
+export const solidColors = ['Grey', 'Tan', 'Charcoal']
