@@ -12,12 +12,12 @@ const points = [{ x: 5, y: 45 }, { x: 65, y: 45 }, { x: 65, y: 62 }, { x: 95, y:
 function fixture(width = 1200, height = 800) {
   return { name: 'test-room.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><defs><linearGradient id="g"><stop stop-color="#4e595a"/><stop offset="1" stop-color="#ddddcc"/></linearGradient></defs><path fill="#bd805d" d="M0 0H${width}V${height}H0Z"/><path fill="url(#g)" d="M0 ${height * 0.4}H${width}V${height}H0Z"/></svg>`) }
 }
-const save = (page: Page) => page.getByRole('button', { name: 'Save or Share Final Preview', exact: true })
+const save = (page: Page) => page.getByRole('button', { name: 'Save / Share', exact: true })
 async function setup(page: Page, width = 1200, height = 800) {
   await page.route('**/api/auto-mask', route => route.fulfill({ json: { points } }))
   await page.goto('/')
-  await page.locator('input[type=file]').setInputFiles(fixture(width, height))
-  await page.getByRole('button', { name: 'Auto-Detect Floor (Beta)', exact: true }).click()
+  await page.locator('input[type=file]:not([capture])').setInputFiles(fixture(width, height))
+  await page.getByRole('button', { name: 'Looks good — choose finish', exact: true }).click()
   await expect(save(page)).toBeEnabled()
   await expect(page.locator('.floor-canvas')).toHaveJSProperty('width', Math.round(width * Math.min(1, 1800 / Math.max(width, height))))
 }
@@ -26,11 +26,13 @@ async function pixels(page: Page) {
   return PNG.sync.read(Buffer.from(data.split(',')[1], 'base64'))
 }
 async function downloadPixels(page: Page, button: string) {
+  await save(page).click()
   const promise = page.waitForEvent('download')
   await page.getByRole('button', { name: button, exact: true }).click()
   const stream = await (await promise).createReadStream()
   const chunks: Buffer[] = []
   for await (const chunk of stream!) chunks.push(chunk)
+  await save(page).click()
   return PNG.sync.read(Buffer.concat(chunks))
 }
 
@@ -61,12 +63,12 @@ test('same full-density image on mobile, desktop, and export; photo and concave 
   expect(outside.changedOutside).toBe(0)
   expect(outside.opaque).toBe(true)
   expect(outside.floorColors).toBeGreaterThan(100)
-  const exported = await downloadPixels(page, 'Save or Share Final Preview')
+  const exported = await downloadPixels(page, 'Finished floor')
   expect(exported.data.equals(before.data)).toBe(true)
   await page.setViewportSize({ width: 1440, height: 1000 })
   expect((await pixels(page)).data.equals(before.data)).toBe(true)
-  await page.locator('input[type=number]').fill('50')
-  const comparison = await downloadPixels(page, 'Save or Share Comparison')
+  await page.getByRole('slider').fill('50')
+  const comparison = await downloadPixels(page, 'Before & after')
   const left = (Math.floor(before.height * 0.85) * before.width + Math.floor(before.width * 0.25)) * 4
   expect(comparison.data.subarray(left, left + 4).equals(before.data.subarray(left, left + 4))).toBe(true)
 })
@@ -75,28 +77,40 @@ test('size, finish, blend, None and mask-clear controls produce current results'
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
   await setup(page)
   const initial = await pixels(page)
-  await page.getByLabel('Apparent flake size').selectOption('1.5')
-  await page.getByLabel('Clear-coat finish').selectOption('satin')
+  await selectSetting(page, 'Apparent flake size', '1.5')
+  await selectSetting(page, 'Clear-coat finish', 'satin')
   await expect(save(page)).toBeEnabled()
   expect((await pixels(page)).data.equals(initial.data)).toBe(false)
-  await page.getByLabel('Flake Blend', { exact: false }).selectOption('None')
+  await page.getByRole('button', {name: 'Choose solid only', exact:true}).click()
   await expect(save(page)).toBeEnabled()
   const solid = await pixels(page)
   expect(solid.data.equals(initial.data)).toBe(false)
-  await page.getByLabel('Flake Blend', { exact: false }).selectOption('Nightfall')
+  await page.getByRole('button', {name: 'Choose Nightfall', exact:true}).click()
   await expect(save(page)).toBeEnabled()
   expect((await pixels(page)).data.equals(solid.data)).toBe(false)
-  await page.getByRole('button', { name: 'Clear Floor Mask', exact: true }).click()
-  await expect(save(page)).toBeDisabled()
+  await page.getByRole('button', { name: '2 Floor', exact: true }).click()
+  await page.getByRole('button', { name: 'Adjust selection', exact: true }).click()
+  await page.getByRole('button', { name: 'Clear selection', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Looks good — choose finish', exact: true })).toBeDisabled()
   expect(errors).toEqual([])
 })
 
 test('portrait images stay bounded and export opaque', async ({ page }) => {
   await setup(page, 2400, 4200)
+  const imageBox = (await page.locator('.stage').boundingBox())!
+  expect(imageBox.width / imageBox.height).toBeCloseTo(2400 / 4200, 2)
+  expect(imageBox.y).toBeGreaterThanOrEqual(0)
+  expect(imageBox.y + imageBox.height).toBeLessThanOrEqual(page.viewportSize()!.height)
+  await page.getByRole('button', {name:'Enlarge photo',exact:true}).click()
+  await expect(page.getByRole('button',{name:'Save / Share',exact:true})).toBeHidden()
+  const enlarged = (await page.locator('.stage').boundingBox())!
+  expect(enlarged.height).toBeGreaterThan(imageBox.height + 40)
+  await page.getByRole('button',{name:'Show finish controls',exact:true}).click()
+  await expect(page.getByRole('button',{name:'Save / Share',exact:true})).toBeVisible()
   const output = await pixels(page)
   expect(output.height).toBe(1800)
   expect(output.width).toBe(1029)
-  const exported = await downloadPixels(page, 'Save or Share Final Preview')
+  const exported = await downloadPixels(page, 'Finished floor')
   expect(exported.data.equals(output.data)).toBe(true)
 })
 
@@ -111,6 +125,7 @@ test('share cancellation does not trigger an unwanted download', async ({ page }
   await setup(page)
   let downloaded = false; page.on('download', () => { downloaded = true })
   await save(page).click()
+  await page.getByRole('button',{name:'Finished floor',exact:true}).click()
   await expect(page.locator('html')).toHaveAttribute('data-shared-type', 'image/png')
   expect(downloaded).toBe(false)
 })
@@ -144,13 +159,13 @@ test('long portrait floor has no repeated clusters at the former tile spacing', 
 
 test('base changes remain visible under flakes without recoloring or moving the whole pattern', async ({ page }) => {
   await setup(page)
-  await page.getByLabel('Flake Blend', { exact: false }).selectOption('Nightfall')
+  await page.getByRole('button', {name: 'Choose Nightfall', exact:true}).click()
   await expect(save(page)).toBeEnabled()
   const grey = await pixels(page)
-  await page.getByLabel('Solid Base', { exact: false }).selectOption('Tan')
+  await selectSetting(page, 'Base color', 'Tan')
   await expect(save(page)).toBeEnabled()
   const tan = await pixels(page)
-  await page.getByLabel('Solid Base', { exact: false }).selectOption('Charcoal')
+  await selectSetting(page, 'Base color', 'Charcoal')
   await expect(save(page)).toBeEnabled()
   const charcoal = await pixels(page)
   let samples = 0, changed = 0, redShift = 0, blueShift = 0, darkening = 0
@@ -170,38 +185,22 @@ test('base changes remain visible under flakes without recoloring or moving the 
   expect(redShift / samples).toBeGreaterThan(2)
   expect(blueShift / samples).toBeLessThan(-3)
   expect(darkening / samples).toBeGreaterThan(5)
-  expect((await downloadPixels(page, 'Save or Share Final Preview')).data.equals(charcoal.data)).toBe(true)
-  await page.getByLabel('Solid Base', { exact: false }).selectOption('Grey')
+  expect((await downloadPixels(page, 'Finished floor')).data.equals(charcoal.data)).toBe(true)
+  await selectSetting(page, 'Base color', 'Grey')
   await expect(save(page)).toBeEnabled()
   expect((await pixels(page)).data.equals(grey.data)).toBe(true)
   // The solid-only path must also continue to respect the base selector.
-  await page.getByLabel('Flake Blend', { exact: false }).selectOption('None')
+  await page.getByRole('button', {name: 'Choose solid only', exact:true}).click()
   await expect(save(page)).toBeEnabled()
   const solidGrey = await pixels(page)
-  await page.getByLabel('Solid Base', { exact: false }).selectOption('Tan')
+  await selectSetting(page, 'Base color', 'Tan')
   await expect(save(page)).toBeEnabled()
   expect((await pixels(page)).data.equals(solidGrey.data)).toBe(false)
 })
 
-test('production quote form sends the rendered floor through the restored workflow', async ({ page }) => {
-  // Intercept the entire submission; this test never creates a lead or sends mail.
-  let payload: { customer: { customerName: string }; assets: { afterPreviewDataUrl: string }; selectedFlake: string } | undefined
-  await page.route('**/api/quote', async route => {
-    payload = route.request().postDataJSON()
-    await route.fulfill({ json: { ok: true, leadId: 'TEST-INTERCEPTED' } })
-  })
-  await setup(page)
-  await expect(page.locator('.preview-banner')).toHaveCount(0)
-  await page.getByLabel('Customer Name').fill('Browser test — not submitted')
-  await page.getByLabel('Phone', { exact: true }).fill('202-555-0100')
-  await page.getByRole('button', { name: 'Submit Quote Request for Review', exact: true }).click()
-  await expect(page.getByText('Quote request sent successfully.', { exact: true })).toBeVisible()
-  expect(payload?.customer.customerName).toBe('Browser test — not submitted')
-  expect(payload?.selectedFlake).toBe('Stonewash')
-  expect(payload?.assets.afterPreviewDataUrl).toMatch(/^data:image\/jpeg;base64,/)
-  const image = await page.evaluate(async data => {
-    const img = new Image(); img.src = data!; await img.decode()
-    return { width: img.naturalWidth, height: img.naturalHeight }
-  }, payload?.assets.afterPreviewDataUrl)
-  expect(image).toEqual({ width: 1200, height: 800 })
-})
+async function selectSetting(page: Page, label: string, value: string) {
+  if (label === 'Base color') { await page.getByRole('button',{name:'Base color',exact:true}).click(); await page.getByRole('button', {name: `Base color ${value}`, exact:true}).click(); await page.getByRole('button',{name:'Flakes',exact:true}).click(); return }
+  await page.locator('.more-options > summary').click()
+  await page.getByLabel(label, {exact:true}).selectOption(value)
+  await page.locator('.more-options > summary').click()
+}

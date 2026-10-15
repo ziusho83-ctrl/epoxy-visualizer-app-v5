@@ -80,25 +80,16 @@ const solidBaseMap: Record<string, string> = {
   Charcoal: '#454850',
 }
 
-const QUOTE_WEBHOOK_URL = (import.meta.env.VITE_QUOTE_WEBHOOK_URL as string | undefined) || '/api/quote'
-const BRAND_TONE_1 = '#F6CCAA'
-const BRAND_TONE_2 = '#3FCBA2'
-const LOGO_PATH = '/logo-icon.png'
 
 function App() {
   const [selectedSolid, setSelectedSolid] = useState(solidColors[0])
   const [selectedFlake, setSelectedFlake] = useState<string>('Stonewash')
   const [imageUrl, setImageUrl] = useState<string>('')
   const [maskPoints, setMaskPoints] = useState<Point[]>([])
-  const [maskMode, setMaskMode] = useState<'manual' | 'auto'>('manual')
   const [autoMaskStatus, setAutoMaskStatus] = useState('')
   const [autoMaskLoading, setAutoMaskLoading] = useState(false)
-  const [autoDetectSuccess, setAutoDetectSuccess] = useState(false)
   const [compare, setCompare] = useState(100)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
-  const [projectName] = useState('')
-  const [companyName] = useState('LuxShield Coatings')
-  const [companyContact] = useState('717-490-2643 • Sales@LuxShiledCoatings.com • LuxShieldCoatings.com')
   const [quote, setQuote] = useState<QuoteRequest>({
     customerName: '',
     phone: '',
@@ -107,17 +98,44 @@ function App() {
     squareFeet: '',
     notes: '',
   })
-  const [submittingQuote, setSubmittingQuote] = useState(false)
   const [quoteStatus, setQuoteStatus] = useState('')
   const [chipSize, setChipSize] = useState(1)
   const [sheen, setSheen] = useState<'satin' | 'gloss'>('gloss')
-  const compareRef = useRef<HTMLDivElement | null>(null)
-
-  const isQuoteReady = useMemo(() => {
-    const hasName = quote.customerName.trim().length > 0
-    const hasContact = quote.phone.trim().length > 0 || quote.email.trim().length > 0
-    return Boolean(imageUrl && hasName && hasContact)
-  }, [imageUrl, quote.customerName, quote.phone, quote.email])
+  const [finishTab, setFinishTab] = useState<'flakes' | 'base'>('flakes')
+  const [photoFocus, setPhotoFocus] = useState(false)
+  const [step, setStep] = useState(0)
+  const [editing, setEditing] = useState(false)
+  const [showSave, setShowSave] = useState(false)
+  const [zip, setZip] = useState('')
+  const [contactMethod, setContactMethod] = useState('phone')
+  const [requestReviewed, setRequestReviewed] = useState(false)
+  const requestVersion = useRef(0)
+  const saveRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (showSave) saveRef.current?.scrollIntoView({block: 'center'}) }, [showSave])
+  const cameraRef = useRef<HTMLInputElement>(null)
+  const uploadRef = useRef<HTMLInputElement>(null)
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  function go(next: number) {
+    setPhotoFocus(false)
+    setStep(next)
+    setShowSave(false)
+    window.scrollTo({ top: 0 })
+  }
+  useEffect(() => { headingRef.current?.focus() }, [step])
+  function loadPhoto(url: string, sample = false) {
+    requestVersion.current++
+    setImageUrl(url)
+    setMaskPoints([])
+    setQuoteStatus('')
+    setRequestReviewed(false)
+    setEditing(false)
+    setAutoMaskStatus('')
+    go(1)
+    if (sample) {
+      setAutoMaskLoading(false)
+      setMaskPoints([{x:18,y:45},{x:82,y:45},{x:100,y:100},{x:0,y:100}])
+    } else void autoDetectFloorMask(url)
+  }
 
   const finishLabel = useMemo(() => {
     return selectedFlake === 'None'
@@ -161,8 +179,9 @@ function App() {
   }
 
 
-  async function autoDetectFloorMask() {
-    if (!imageUrl) return
+  async function autoDetectFloorMask(url = imageUrl) {
+    if (!url) return
+    const version = ++requestVersion.current
 
     const startTime = Date.now()
     let timerInterval: ReturnType<typeof setInterval> | undefined
@@ -170,13 +189,13 @@ function App() {
       setAutoMaskLoading(true)
       timerInterval = setInterval(() => {
         const elapsed = Math.round((Date.now() - startTime) / 1000)
-        setAutoMaskStatus(`Segmenting floor with AI… ${elapsed}s elapsed`)
+        if (version === requestVersion.current) setAutoMaskStatus(`Finding your floor… ${elapsed}s`)
       }, 1000)
-      setAutoMaskStatus('Segmenting floor with AI… 0s elapsed')
+      setAutoMaskStatus('Finding your floor…')
 
       // Downscale image to keep payload small (max ~800px wide)
       const img = new Image()
-      img.src = imageUrl
+      img.src = url
       await img.decode()
 
       const maxW = 800
@@ -215,79 +234,20 @@ function App() {
       }
 
       clearInterval(timerInterval)
-      const totalTime = Math.round((Date.now() - startTime) / 1000)
+      if (version !== requestVersion.current) return
       setMaskPoints(data.points)
-      setMaskMode('auto')
-      setAutoDetectSuccess(true)
-      setAutoMaskStatus(`AI floor mask applied successfully (${data.points.length} points) in ${totalTime}s. Manual editing is now locked to avoid accidental changes.`)
+      setAutoMaskStatus('Check the highlighted area. You can adjust it before continuing.')
     } catch (err) {
       clearInterval(timerInterval)
       console.error('Auto-mask failed:', err)
-      setAutoDetectSuccess(false)
-      setAutoMaskStatus(`AI detection failed: ${(err as Error).message}. You can place points manually if needed.`)
+      if (version !== requestVersion.current) return
+      setEditing(true)
+      setAutoMaskStatus('We could not find the floor. Try again, or tap around its edges to select it yourself.')
     } finally {
-      setAutoMaskLoading(false)
+      if (version === requestVersion.current) setAutoMaskLoading(false)
     }
   }
 
-
-  async function buildAfterPreviewDataUrl(maxEdge = 1200) {
-    if (!rendered?.canvas) throw new Error('Wait for the preview to finish.')
-    const source = rendered.canvas
-    const scale = Math.min(1, maxEdge / Math.max(source.width, source.height))
-    const { canvas, ctx } = canvas2d(Math.max(1, Math.round(source.width * scale)), Math.max(1, Math.round(source.height * scale)))
-    ctx.drawImage(source, 0, 0, canvas.width, canvas.height)
-    return canvas.toDataURL('image/jpeg', 0.94)
-  }
-
-  async function submitQuoteRequest() {
-    if (!imageUrl || !previewReady) {
-      alert('Upload a photo and finish the floor preview first.')
-      return
-    }
-    if (!quote.customerName.trim() || (!quote.phone.trim() && !quote.email.trim())) {
-      alert('Add customer name and at least phone or email.')
-      return
-    }
-
-    setSubmittingQuote(true)
-    setQuoteStatus('Submitting quote request...')
-
-    try {
-      const afterPreview = await buildAfterPreviewDataUrl(1200)
-      const payload = {
-        submittedAt: new Date().toISOString(),
-        projectName: projectName.trim() || 'Epoxy Flooring Proposal',
-        finishLabel,
-        selectedSolid,
-        selectedFlake,
-        compare,
-        customer: quote,
-        company: {
-          companyName,
-          companyContact,
-        },
-        assets: {
-          afterPreviewDataUrl: afterPreview,
-        },
-      }
-
-      const res = await fetch(QUOTE_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (!res.ok) throw new Error(`Request failed (${res.status})`)
-
-      setQuoteStatus('Quote request sent successfully.')
-      setQuote((prev) => ({ ...prev, notes: '' }))
-    } catch {
-      setQuoteStatus('Quote submit failed. Try again or export quote card and send manually.')
-    } finally {
-      setSubmittingQuote(false)
-    }
-  }
 
   async function saveDataUrlWithFallback(dataUrl: string, filename: string) {
     const isFacebookInApp = /FBAN|FBAV|FB_IAB|Instagram/i.test(navigator.userAgent)
@@ -329,134 +289,6 @@ function App() {
     if (!w) window.location.href = dataUrl
   }
 
-  async function exportQuoteCard() {
-    try {
-      if (!imageUrl) {
-        alert('Upload a photo first.')
-        return
-      }
-
-      if (!rendered?.canvas || !rendered.photo || !previewReady) return
-      const img = rendered.photo
-      const afterCanvas = rendered.canvas
-
-      const outW = 1600
-      const headerH = 240
-      const bodyH = 900
-      const outH = headerH + bodyH + 180
-
-      const canvas = document.createElement('canvas')
-      canvas.width = outW
-      canvas.height = outH
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-
-      ctx.fillStyle = '#000000'
-      ctx.fillRect(0, 0, outW, outH)
-
-      // Subtle textured black background
-      for (let i = 0; i < 2200; i++) {
-        const x = Math.random() * outW
-        const y = Math.random() * outH
-        const a = 0.02 + Math.random() * 0.03
-        ctx.fillStyle = `rgba(255,255,255,${a})`
-        ctx.fillRect(x, y, 1, 1)
-      }
-
-      // Modern abstract line accents
-      ctx.save()
-      ctx.globalAlpha = 0.32
-      ctx.strokeStyle = BRAND_TONE_2
-      ctx.lineCap = 'round'
-
-      const drawLine = (x1: number, y1: number, x2: number, y2: number, width: number) => {
-        ctx.beginPath()
-        ctx.lineWidth = width
-        ctx.moveTo(x1, y1)
-        ctx.lineTo(x2, y2)
-        ctx.stroke()
-      }
-
-      drawLine(outW * 0.72, outH * 0.08, outW * 0.95, outH * 0.08, 3)
-      drawLine(outW * 0.76, outH * 0.11, outW * 0.95, outH * 0.11, 2)
-      drawLine(outW * 0.80, outH * 0.14, outW * 0.95, outH * 0.14, 1.5)
-
-      drawLine(outW * 0.06, outH * 0.88, outW * 0.28, outH * 0.88, 3)
-      drawLine(outW * 0.06, outH * 0.91, outW * 0.24, outH * 0.91, 2)
-      drawLine(outW * 0.06, outH * 0.94, outW * 0.20, outH * 0.94, 1.5)
-
-      ctx.restore()
-
-      const brandGrad = ctx.createLinearGradient(0, 0, outW, 0)
-      brandGrad.addColorStop(0, BRAND_TONE_1)
-      brandGrad.addColorStop(1, BRAND_TONE_2)
-      ctx.fillStyle = brandGrad
-      ctx.fillRect(0, 0, outW, 12)
-
-      ctx.fillStyle = BRAND_TONE_1
-      ctx.font = 'bold 54px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
-      ctx.fillText(companyName || 'Your Company', 64, 90)
-
-      try {
-        const logo = new Image()
-        logo.src = LOGO_PATH
-        await logo.decode()
-        const targetH = 92
-        const targetW = (logo.naturalWidth / logo.naturalHeight) * targetH
-        const x = outW - 64 - targetW
-        const y = 32
-        ctx.drawImage(logo, x, y, targetW, targetH)
-      } catch {
-        // If logo is missing/unreadable, continue export without it.
-      }
-
-      ctx.font = '30px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
-      ctx.fillStyle = BRAND_TONE_1
-      ctx.fillText(companyContact || 'Phone • Email', 64, 136)
-
-      const label = projectName.trim() || 'Epoxy Flooring Proposal'
-      const dateLabel = new Date().toLocaleDateString()
-      ctx.font = '28px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
-      ctx.fillStyle = BRAND_TONE_1
-      ctx.fillText(`Project: ${label}`, 64, 182)
-      ctx.fillText(`Date: ${dateLabel}`, 64, 218)
-
-      const margin = 64
-      const gap = 36
-      const panelW = Math.floor((outW - margin * 2 - gap) / 2)
-      const panelH = bodyH - 110
-      const topY = headerH + 40
-
-      ctx.fillStyle = '#111827'
-      ctx.fillRect(margin, topY, panelW, panelH)
-      ctx.fillRect(margin + panelW + gap, topY, panelW, panelH)
-
-      ctx.drawImage(img, margin, topY, panelW, panelH)
-      ctx.drawImage(afterCanvas, margin + panelW + gap, topY, panelW, panelH)
-
-      ctx.font = 'bold 30px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
-      ctx.fillStyle = BRAND_TONE_1
-      ctx.fillText('Before', margin, topY - 10)
-      ctx.fillText('After', margin + panelW + gap, topY - 10)
-
-      ctx.font = '27px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
-      ctx.fillStyle = BRAND_TONE_1
-      ctx.fillText(`Finish: ${finishLabel}`, margin, outH - 98)
-      ctx.fillText(`System: Decorative flake epoxy with ${sheen} topcoat`, margin, outH - 62)
-
-      ctx.font = '20px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
-      ctx.fillStyle = BRAND_TONE_1
-      ctx.fillText('Disclaimer: This is a digital preview for visualization only. Final color/texture may vary due to lighting, surface prep,', margin, outH - 30)
-      ctx.fillText('application method, and monitor/device settings.', margin, outH - 8)
-
-      const filename = `epoxy-quote-${Date.now()}.png`
-      const dataUrl = canvas.toDataURL('image/png')
-      await saveDataUrlWithFallback(dataUrl, filename)
-    } catch {
-      alert('Quote export failed on this device. Try again or use comparison export.')
-    }
-  }
-
   async function exportPreviewImage(kind: 'comparison' | 'after') {
     try {
       if (!imageUrl) return
@@ -483,291 +315,116 @@ function App() {
       const dataUrl = canvas.toDataURL('image/png')
       await saveDataUrlWithFallback(dataUrl, filename)
     } catch {
-      alert('We could not save or share on this device just yet. Please take a screenshot for now, and we can improve this in the next update.')
+      setQuoteStatus('Could not save this image. Try opening this preview in Safari or Chrome.')
     }
   }
 
   return (
-    <main className="wrap">
+    <main className={`wrap flow-wrap ${step === 2 ? 'finish-workspace' : ''} ${step === 2 && photoFocus ? 'photo-focus' : ''}`}>
+      <div className="preview-banner">Design preview · Estimate requests are not sent or stored.</div>
       <header className="brand-header">
-        <div className="brand-copy">
-          <p className="brand-kicker">LuxShield Coatings</p>
-          <h1>Epoxy Visualizer V5</h1>
-          <p>Shielding surfaces with lasting beauty.</p>
-          <p className="brand-powered">App powered by AI.</p>
-        </div>
-        <img src="/luxshield-logo.png" alt="LuxShield Coatings logo" className="brand-logo" />
+        <p className="brand-kicker">LuxShield Coatings</p>
+        <img src="/luxshield-logo.png" alt="LuxShield Coatings" className="brand-logo" />
       </header>
-
-      <section className="card">
-        <h2>1) Upload Garage Photo</h2>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (!file) return
-            setImageUrl(URL.createObjectURL(file))
-            setMaskPoints([])
-            setMaskMode('manual')
-            setAutoMaskStatus('')
-            setAutoDetectSuccess(false)
-          }}
-        />
-        {!imageUrl && <p className="muted">Please upload a photo to begin.</p>}
-      </section>
-
-      <section className="card">
-        <h2>2) Floor Mask Tool (Polygon)</h2>
-        <p className="muted">Please start with Auto-Detect Floor first. If AI detection does not map the floor correctly, you can then use manual point adjustments.</p>
-        {imageUrl ? (
-          <>
-            <div className="row">
-              <button onClick={() => void autoDetectFloorMask()} disabled={autoMaskLoading}>
-                {autoMaskLoading ? 'Detecting…' : 'Auto-Detect Floor (Beta)'}
-              </button>
-              <button
-                onClick={() => {
-                  setMaskPoints((pts) => pts.slice(0, -1))
-                  setMaskMode('manual')
-                  setAutoDetectSuccess(false)
-                }}
-                disabled={!maskPoints.length || autoDetectSuccess}
-              >
-Undo Last Point
-              </button>
-              <button
-                onClick={() => {
-                  setMaskPoints([])
-                  setMaskMode('manual')
-                  setAutoDetectSuccess(false)
-                }}
-                disabled={!maskPoints.length}
-              >
-Clear Floor Mask
-              </button>
-            </div>
-            <div
-              className="stage"
-              onPointerDown={(e) => {
-                const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
-
-                if (autoDetectSuccess) return
-                if (dragIndex !== null) return
-                const target = e.target as HTMLElement
-                if (target.dataset.point === 'mask-dot') return
-                addMaskPoint(e.clientX, e.clientY, rect)
-                setMaskMode('manual')
-              }}
-              onPointerMove={(e) => {
-                const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
-
-                if (autoDetectSuccess) return
-                if (dragIndex === null) return
-                updateMaskPoint(dragIndex, e.clientX, e.clientY, rect)
-                setMaskMode('manual')
-              }}
-              onPointerUp={() => {
-                setDragIndex(null)
-              }}
-              onPointerLeave={() => {
-                setDragIndex(null)
-              }}
-            >
-              <img src={imageUrl} alt="garage" className="preview" />
-              {autoMaskLoading && (
-                <div className="auto-mask-overlay">
-                  <div className="auto-mask-spinner" />
-                  <p>{autoMaskStatus}</p>
-                </div>
-              )}
-              <svg className="mask-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-                {maskPoints.length >= 3 && <polygon className="mask-fill" points={polygonPointsAttr} />}
-                {maskPoints.length >= 2 && <polyline className="mask-line" fill="none" points={polygonPointsAttr} />}
-                {maskPoints.map((p, idx) => (
-                  <circle
-                    key={`${p.x}-${p.y}-${idx}`}
-                    cx={p.x}
-                    cy={p.y}
-                    r={0.8}
-                    className="mask-dot"
-                    data-point="mask-dot"
-                    onPointerDown={(e) => {
-                      if (autoDetectSuccess) return
-                      e.stopPropagation()
-                      setDragIndex(idx)
-                    }}
-                  />
-                ))}
-              </svg>
-            </div>
-            <small>{maskPoints.length} point(s) selected • Selection mode: {maskMode === 'auto' ? 'Auto' : 'Manual'}</small>
-            {autoMaskStatus && <small className="muted">{autoMaskStatus}</small>}
-          </>
-        ) : (
-          <p className="muted">Please upload a photo first.</p>
-        )}
-      </section>
-
-      <section className="card configurator-card">
-        <div className="section-title-row">
-          <div>
-            <h2>3) Finish Selection + Live Preview</h2>
-            <div className="section-accent" />
+      <nav className="steps" aria-label="Design progress">
+        {['Photo', 'Floor', 'Finish', 'Estimate'].map((label, i) => <button key={label} aria-current={step === i ? 'step' : undefined} disabled={i > step && (i > 1 ? !previewReady : !imageUrl)} onClick={() => go(i)}><span>{i + 1}</span>{label}</button>)}
+      </nav>
+      <h1 ref={headingRef} tabIndex={-1} className="flow-heading">{['See your space with a new epoxy floor.', 'Did we select your floor correctly?', 'Make it your own.', 'Get an estimate for this floor.'][step]}</h1>
+      {step === 0 && <section className="upload-card">
+        <p>Upload a photo. Explore finishes. Picture the transformation.</p>
+        <div className="row"><button className="primary" onClick={() => cameraRef.current?.click()}>Take photo</button><button onClick={() => uploadRef.current?.click()}>Upload photo</button></div>
+        <button className="text-button" onClick={() => loadPhoto('/sample-room.svg', true)}>Try a sample</button>
+        <p className="muted">If your in-app browser does not open the camera, open this page in Safari or Chrome, or upload an existing photo.</p>
+        <p className="muted">Use a well-lit photo with the floor in view. Original photos work better than screenshots.</p>
+        <details><summary>How your photo is used</summary><p>Your photo is sent to our floor-detection service to identify the floor. Finish previews are rendered on your device. This preview does not save estimate details. Reloading clears your design.</p></details>
+      </section>}
+      <input ref={uploadRef} className="visually-hidden" aria-label="Upload floor photo" type="file" accept="image/*" onChange={e => { const file = e.target.files?.[0]; if (file) loadPhoto(URL.createObjectURL(file)); e.target.value = '' }} />
+      <input ref={cameraRef} className="visually-hidden" aria-label="Take floor photo" type="file" accept="image/*" capture="environment" onChange={e => { const file = e.target.files?.[0]; if (file) loadPhoto(URL.createObjectURL(file)); e.target.value = '' }} />
+      {step > 0 && <div className="design-layout">
+        <div className="visual-panel" style={{ '--photo-ratio': rendered?.canvas ? rendered.canvas.width / rendered.canvas.height : 1 } as React.CSSProperties}>
+          <div className={`stage compare-stage ${step === 1 && editing ? 'editing-stage' : ''}`}
+            onPointerDown={e => {
+              if (step !== 1 || !editing || autoMaskLoading) return
+              const target = e.target as Element
+              const index = target.getAttribute('data-index')
+              if (index !== null) { setDragIndex(Number(index)); e.currentTarget.setPointerCapture(e.pointerId) }
+              else addMaskPoint(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect())
+            }}
+            onPointerMove={e => { if (step === 1 && editing && dragIndex !== null) updateMaskPoint(dragIndex, e.clientX, e.clientY, e.currentTarget.getBoundingClientRect()) }}
+            onPointerUp={() => setDragIndex(null)} onPointerCancel={() => setDragIndex(null)}>
+            <img src={imageUrl} alt="Your space before the floor finish" className="preview" />
+            {step !== 1 && <><div className="after-layer" style={{ clipPath: `inset(0 ${100 - compare}% 0 0)` }}><FloorPreview source={rendered?.canvas} /></div>{compare > 0 && compare < 100 && <div className="compare-handle" style={{left: `${compare}%`}} />}</>}
+            {step === 2 && <button className="photo-focus-toggle" aria-label={photoFocus ? 'Show finish controls' : 'Enlarge photo'} aria-pressed={photoFocus} onClick={() => {setPhotoFocus(!photoFocus); setShowSave(false)}}><span>{photoFocus ? 'Show controls' : 'Tap photo to enlarge'}</span></button>}
+            {step === 1 && <svg className="mask-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Selected floor boundary">
+              {maskPoints.length >= 3 && <polygon className="mask-fill" points={polygonPointsAttr} />}
+              {maskPoints.length >= 2 && <polyline className="mask-line" fill="none" points={polygonPointsAttr} />}
+              {editing && maskPoints.map((p,i) => <circle key={i} data-index={i} cx={p.x} cy={p.y} r={1.4} className="mask-dot" />)}
+            </svg>}
+            {autoMaskLoading && <div className="auto-mask-overlay" role="status"><div className="auto-mask-spinner" /><p>{autoMaskStatus}</p></div>}
           </div>
-          <img src="/luxshield-logo.png" alt="LuxShield mark" className="section-logo" />
+          {step > 1 && <label className="comparison-control"><span>Before</span><input aria-label="Before and after" type="range" min="0" max="100" value={compare} onChange={e => setCompare(Number(e.target.value))} /><span>After</span></label>}
+          {step > 1 && <p className="finish-caption">{selectedFlake === 'None' ? 'Solid finish' : selectedFlake} · {selectedSolid} · {sheen === 'gloss' ? 'Gloss' : 'Satin'}</p>}
+          <button className="text-button" onClick={() => go(0)}>Change photo</button>
+          {step > 1 && <button className="text-button" onClick={() => {setEditing(false); go(1)}}>Adjust floor</button>}
         </div>
-        <div className="row" style={{ marginTop: 8 }}>
-          <span className="muted">Dense flake finish • Same detail on mobile and desktop.</span>
-        </div>
-        {imageUrl ? (
-          <>
-            {!rendered && <p className="status-msg" role="status">Rendering your floor…</p>}
-            {rendered?.error && <p className="status-msg" role="alert">{rendered.error}</p>}
-            <div className="stage compare-stage" ref={compareRef} aria-busy={!rendered}>
-              <img src={imageUrl} alt="garage before" className="preview" />
-
-              <div className="after-layer" style={{ clipPath: `inset(0 ${100 - compare}% 0 0)` }}>
-                <FloorPreview source={rendered?.canvas} />
-              </div>
-              <div className="compare-handle" style={{ left: `${compare}%` }} />
+        <section className="control-panel">
+          {step === 1 && <>
+            <p className="muted" role="status">{!autoMaskLoading && (autoMaskStatus || 'The highlighted area is where the new finish will go.')}</p>
+            {editing ? <>
+              <p>Drag a point to move an edge. Tap to add a point. To redraw, clear the selection and tap around the floor in order.</p>
+              <div className="row"><button disabled={!maskPoints.length} onClick={() => setMaskPoints(p => p.slice(0,-1))}>Undo last point</button><button disabled={!maskPoints.length} onClick={() => setMaskPoints([])}>Clear selection</button></div>
+            </> : <button disabled={autoMaskLoading} onClick={() => setEditing(true)}>Adjust selection</button>}
+            <button className="text-button" disabled={autoMaskLoading} onClick={() => void autoDetectFloorMask()}>Retry detection</button>
+            <div className="action-bar"><button className="primary" disabled={!previewReady || autoMaskLoading} onClick={() => {setEditing(false); go(2)}}>Looks good — choose finish</button></div>
+          </>}
+          {step === 2 && <>
+            <div className="finish-tabs" role="group" aria-label="Finish controls">
+              <button aria-pressed={finishTab === 'flakes'} onClick={() => setFinishTab('flakes')}>Flakes</button>
+              <button aria-pressed={finishTab === 'base'} onClick={() => setFinishTab('base')}>Base color</button>
             </div>
-
-            <div className="row two-col" style={{ marginTop: 14 }}>
-              <label className="field-inline">
-                <span>Solid Base (Opaque)</span>
-                <div className="select-with-swatch">
-                  <select value={selectedSolid} onChange={(e) => setSelectedSolid(e.target.value)}>
-                    {solidColors.map((c) => <option key={c}>{c}</option>)}
-                  </select>
-                  <span className="color-swatch" style={{ background: baseSolidRaw }} />
-                </div>
-              </label>
-              <label className="field-inline">
-                <span>Flake Blend</span>
-                <select value={selectedFlake} onChange={(e) => setSelectedFlake(e.target.value)}>
-                  <option value="None">None</option>
-                  {flakeBlends.map((f) => <option key={f}>{f}</option>)}
-                </select>
-                {flakeTones.length > 0 && selectedFlake !== 'None' && (
-                  <div className="flake-swatch" aria-label="Selected flake tones">
-                    {flakeTones.slice(0, 4).map((tone, i) => (
-                      <span key={`${tone}-${i}`} style={{ background: tone }} />
-                    ))}
-                  </div>
-                )}
-              </label>
+            <div hidden={finishTab !== 'flakes'}>
+            <div className="blend-heading"><strong>{selectedFlake === 'None' ? 'Solid only' : selectedFlake}</strong><span>Swipe to explore →</span></div>
+            <div className="flake-strip" aria-label="Flake samples">
+              {['None', ...flakeBlends].map(f => <button key={f} aria-label={`Choose ${f === 'None' ? 'solid only' : f}`} aria-pressed={selectedFlake === f} className="flake-tile" onClick={e => { setSelectedFlake(f); e.currentTarget.scrollIntoView({block:'nearest',inline:'nearest'}) }}>
+                {f === 'None' ? <span className="solid-tile" style={{background:baseSolidRaw}} /> : <img src={`/flakes/${f.toLowerCase().replaceAll(' ', '-')}.jpg`} alt="" loading="lazy" />}
+                <span>{f === 'None' ? 'Solid only' : f}</span>
+              </button>)}
             </div>
-
-            <div className="row two-col finish-controls">
-              <label className="field-inline">
-                <span>Apparent flake size</span>
-                <select aria-label="Apparent flake size" value={chipSize} onChange={e => setChipSize(Number(e.target.value))}>
-                  <option value={0.65}>Fine</option>
-                  <option value={1}>Standard</option>
-                  <option value={1.5}>Bold</option>
-                </select>
-              </label>
-              <label className="field-inline">
-                <span>Clear-coat finish</span>
-                <select aria-label="Clear-coat finish" value={sheen} onChange={e => setSheen(e.target.value as 'satin' | 'gloss')}>
-                  <option value="gloss">Gloss</option>
-                  <option value="satin">Satin</option>
-                </select>
-              </label>
             </div>
-            <p className="muted">Base color shows between flakes. Choose “None” for a solid-only floor. Flake size is a visual adjustment, not a measured chip dimension.</p>
-            <p className="badge">Selected finish: {finishLabel} • {sheen === 'gloss' ? 'Gloss' : 'Satin'} clear coat</p>
-
-            <div className="row" style={{ marginTop: 12 }}>
-              <label className="slider-label">Before / After Preview: {compare}%</label>
-              <input type="range" min={0} max={100} value={compare} onChange={(e) => setCompare(Number(e.target.value))} />
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={compare}
-                onChange={(e) => {
-                  const v = Number(e.target.value)
-                  setCompare(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0)
-                }}
-                style={{ width: 86 }}
-              />
-              <button disabled={!previewReady} onClick={() => exportPreviewImage('comparison')}>Save or Share Comparison</button>
-              <button disabled={!previewReady} onClick={() => exportPreviewImage('after')}>Save or Share Final Preview</button>
+            <div hidden={finishTab !== 'base'}>
+            <div className="base-picker" role="group" aria-label="Base color">
+              <span className="base-label">Base color</span>
+              {solidColors.map(c => <button key={c} aria-label={`Base color ${c}`} aria-pressed={selectedSolid === c} onClick={() => setSelectedSolid(c)}><span className="base-dot" style={{background:solidBaseMap[c]}} aria-hidden="true">{selectedSolid === c ? '✓' : ''}</span>{c}</button>)}
             </div>
-          </>
-        ) : (
-          <p className="muted">Please upload an image to view the preview.</p>
-        )}
-      </section>
-
-      <section className="card">
-
-        <h2>4) Client Quote Request Form</h2>
-        <div className="section-accent" />
-        <p className="muted">Please use this form for website leads after creating a visualization, so we can follow up with a formal quote.</p>
-        <div className="row two-col" style={{ marginTop: 10 }}>
-          <label className="field-inline">
-            <span>Customer Name *</span>
-            <input value={quote.customerName} onChange={(e) => setQuote((q) => ({ ...q, customerName: e.target.value }))} />
-          </label>
-          <label className="field-inline">
-            <span>Phone</span>
-            <input value={quote.phone} onChange={(e) => setQuote((q) => ({ ...q, phone: e.target.value }))} />
-          </label>
-        </div>
-        <div className="row two-col">
-          <label className="field-inline">
-            <span>Email</span>
-            <input value={quote.email} onChange={(e) => setQuote((q) => ({ ...q, email: e.target.value }))} />
-          </label>
-          <label className="field-inline">
-            <span>Estimated Square Feet</span>
-            <input value={quote.squareFeet} onChange={(e) => setQuote((q) => ({ ...q, squareFeet: e.target.value }))} />
-          </label>
-        </div>
-        <div className="row">
-          <label className="field-inline" style={{ width: '100%' }}>
-            <span>Project Address</span>
-            <input value={quote.address} onChange={(e) => setQuote((q) => ({ ...q, address: e.target.value }))} />
-          </label>
-        </div>
-        <div className="row">
-          <label className="field-inline" style={{ width: '100%' }}>
-            <span>Notes</span>
-            <textarea rows={4} value={quote.notes} onChange={(e) => setQuote((q) => ({ ...q, notes: e.target.value }))} />
-          </label>
-        </div>
-        <div className="row">
-          <button onClick={submitQuoteRequest} disabled={submittingQuote || !previewReady}>{submittingQuote ? 'Submitting...' : 'Submit Quote Request for Review'}</button>
-          <span className="muted">We will review your request and follow up shortly.</span>
-        </div>
-        {quoteStatus && <p className="status-msg">{quoteStatus}</p>}
-      </section>
-
-      <section className="card">
-        <h2>5) Quote Export</h2>
-        <div className="section-accent" />
-        <div className="row two-col" style={{ marginTop: 10 }}>
-          <label className="field-inline">
-            <span>Company Name</span>
-            <input value={companyName} readOnly />
-          </label>
-          <label className="field-inline">
-            <span>Contact (phone/email)</span>
-            <input value={companyContact} readOnly />
-          </label>
-        </div>
-        <div className="row" style={{ marginTop: 8 }}>
-          <button onClick={exportQuoteCard} disabled={!isQuoteReady || !previewReady}>Export Digital Visualization</button>
-          {!isQuoteReady && <span className="muted">Please complete Section 4 (name and phone or email) and upload a photo first.</span>}
-        </div>
-      </section>
-
-      
+            </div>
+            <details className="more-options"><summary>Size &amp; sheen <span> · More options</span></summary><div className="two-col">
+              <label className="field-inline">Flake size<select aria-label="Apparent flake size" value={chipSize} onChange={e => setChipSize(Number(e.target.value))}><option value={0.65}>Fine</option><option value={1}>Standard</option><option value={1.5}>Bold</option></select></label>
+              <label className="field-inline">Clear-coat finish<select aria-label="Clear-coat finish" value={sheen} onChange={e => setSheen(e.target.value as 'satin' | 'gloss')}><option value="gloss">Gloss</option><option value="satin">Satin</option></select></label>
+            </div><p className="muted">Base color shows between flakes. Flake size is a visual adjustment, not a measured chip dimension. Sample photos are references; confirm with a physical sample.</p></details>
+            {rendered?.error && <p role="alert">{rendered.error}</p>}
+            {!rendered && <p role="status">Rendering your finish…</p>}
+            <div className="action-bar"><button disabled={!previewReady} onClick={() => setShowSave(!showSave)} aria-expanded={showSave}>Save / Share</button><button className="primary" disabled={!previewReady} onClick={() => {setCompare(100); go(3)}}>Get estimate</button></div>
+            {showSave && <div className="save-options" ref={saveRef}><p>Download your design. No contact details needed.</p><button onClick={() => void exportPreviewImage('after')}>Finished floor</button><button onClick={() => void exportPreviewImage('comparison')}>Before &amp; after</button><p className="muted">Comparison uses the slider position above.</p></div>}
+          </>}
+          {step === 3 && <>
+            <p className="muted">Your selected finish and visualization belong with your request. No need to describe them again.</p>
+            {requestReviewed ? <div role="status" className="review-state"><h2>Your request is ready to review.</h2><p><strong>Preview only: nothing was sent or stored.</strong></p><p>{quote.customerName} · {contactMethod === 'phone' ? quote.phone : quote.email} · ZIP {zip}</p><p>{finishLabel}</p><button onClick={() => setRequestReviewed(false)}>Edit details</button></div> : <form onSubmit={e => {e.preventDefault(); setRequestReviewed(true)}}>
+              <label className="field-inline">Name<input required autoComplete="name" value={quote.customerName} onChange={e => setQuote(q => ({...q,customerName:e.target.value}))} /></label>
+              <label className="field-inline">Contact me by<select value={contactMethod} onChange={e => setContactMethod(e.target.value)}><option value="phone">Phone</option><option value="email">Email</option></select></label>
+              {contactMethod === 'phone' ? <label className="field-inline">Phone<input required type="tel" autoComplete="tel" minLength={7} title="Enter a phone number with at least seven characters" value={quote.phone} onChange={e => setQuote(q => ({...q,phone:e.target.value}))} /></label> : <label className="field-inline">Email<input required type="email" autoComplete="email" value={quote.email} onChange={e => setQuote(q => ({...q,email:e.target.value}))} /></label>}
+              <label className="field-inline">ZIP code<input required inputMode="numeric" autoComplete="postal-code" pattern="[0-9]{5}(-[0-9]{4})?" title="Enter a five-digit ZIP code" value={zip} onChange={e => setZip(e.target.value)} /></label>
+              <label className="field-inline">Approximate area<select value={quote.squareFeet} onChange={e => setQuote(q => ({...q,squareFeet:e.target.value}))}><option value="">Not sure</option><option>Under 250 sq ft</option><option>250–500 sq ft</option><option>500–800 sq ft</option><option>Over 800 sq ft</option></select></label>
+              <details><summary>Add project details (optional)</summary><label className="field-inline">Project address<input autoComplete="street-address" value={quote.address} onChange={e => setQuote(q => ({...q,address:e.target.value}))} /></label><label className="field-inline">Notes<textarea rows={3} value={quote.notes} onChange={e => setQuote(q => ({...q,notes:e.target.value}))} /></label></details>
+              <p className="muted">Preview only. Use test details. This form does not send or save a request.</p>
+              <button className="primary" type="submit">Review request</button>
+            </form>}
+            <button className="text-button" onClick={() => go(2)}>Back to finishes</button>
+          </>}
+          {quoteStatus && <p role="alert">{quoteStatus}</p>}
+        </section>
+      </div>}
+      <footer className="flow-footer">Digital visualization only. Actual colors, flake size and finish vary with lighting and installation. Confirm your choice with a physical sample.</footer>
     </main>
   )
 }
-
 export default App

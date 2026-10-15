@@ -1,0 +1,87 @@
+import { test, expect } from '@playwright/test'
+
+test('sample flow, editable boundary, back navigation and honest request review', async ({page}) => {
+  let submissions = 0
+  await page.route('**/api/quote', route => { submissions++; return route.abort() })
+  await page.goto('/')
+  await expect(page.getByRole('heading', {level:1})).toContainText('See your space')
+  await expect(page.getByLabel('Name', {exact:true})).toHaveCount(0)
+  await page.getByRole('button', {name:'Try a sample'}).click()
+  await expect(page.locator('.stage')).toHaveCount(1)
+  await page.getByRole('button', {name:'Adjust selection'}).click()
+  const original = await page.locator('polygon').getAttribute('points')
+  const dot = page.locator('circle').first()
+  await expect(page.locator('.stage img')).toHaveJSProperty('complete', true)
+  await dot.scrollIntoViewIfNeeded()
+  const box = (await dot.boundingBox())!
+  await page.mouse.move(box.x + box.width/2, box.y+box.height/2)
+  await page.mouse.down(); await page.mouse.move(box.x+20,box.y+20); await page.mouse.up()
+  await expect(page.locator('polygon')).not.toHaveAttribute('points', original!)
+  await page.getByRole('button', {name:'Looks good — choose finish'}).click()
+  await page.getByRole('button', {name: 'Choose Nightfall', exact:true}).click()
+  await page.getByRole('button', {name:'Get estimate',exact:true}).click()
+  await page.getByLabel('Name',{exact:true}).fill('Preview Tester')
+  await page.getByLabel('Contact me by').selectOption('email')
+  await page.getByLabel('Email',{exact:true}).fill('test@example.com')
+  await page.getByLabel('ZIP code').fill('17001')
+  await page.getByRole('button',{name:'Review request'}).click()
+  await expect(page.getByRole('status')).toContainText('nothing was sent or stored')
+  await expect(page.getByRole('status')).toContainText('Nightfall')
+  expect(submissions).toBe(0)
+  await page.getByRole('button',{name:'Back to finishes'}).click()
+  await expect(page.getByRole('button',{name:'Choose Nightfall',exact:true})).toHaveAttribute('aria-pressed','true')
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+test('failed detection offers retry and manual selection, with no blank continuation',async({page})=>{
+  await page.route('**/api/auto-mask',route=>route.fulfill({status:503,json:{error:'Unavailable'}}))
+  await page.goto('/')
+  await page.locator('input[type=file]:not([capture])').setInputFiles('public/sample-room.svg')
+  await expect(page.locator('.control-panel [role=status]')).toContainText('We could not find the floor')
+  await expect(page.getByRole('button',{name:'Looks good — choose finish'})).toBeDisabled()
+  const stage = page.locator('.stage'); const b = (await stage.boundingBox())!
+  for(const [x,y] of [[.2,.5],[.8,.5],[.9,.9],[.1,.9]]) await page.mouse.click(b.x+b.width*x,b.y+b.height*y)
+  await expect(page.getByRole('button',{name:'Looks good — choose finish'})).toBeEnabled()
+  await page.getByRole('button',{name:'Looks good — choose finish'}).click()
+  await expect(page.locator('canvas')).toBeVisible()
+})
+
+test('camera action requests rear capture and captured image starts floor detection', async ({page}) => {
+  await page.route('**/api/auto-mask',route=>route.fulfill({json:{points:[{x:10,y:45},{x:90,y:45},{x:100,y:100},{x:0,y:100}]}}))
+  await page.goto('/')
+  await expect(page.getByLabel('Take floor photo')).toHaveAttribute('capture','environment')
+  await expect(page.getByLabel('Upload floor photo')).not.toHaveAttribute('capture')
+  const chooser = page.waitForEvent('filechooser')
+  await page.getByRole('button',{name:'Take photo',exact:true}).click()
+  await (await chooser).setFiles('public/sample-room.svg')
+  await expect(page.getByRole('button',{name:'Looks good — choose finish'})).toBeEnabled()
+  await page.getByRole('button',{name:'Looks good — choose finish'}).click()
+  await expect(page.locator('canvas')).toBeVisible()
+})
+
+test('finish photo, swipe samples and actions fit a short mobile viewport',async({page})=>{
+  await page.setViewportSize({width:390,height:650})
+  await page.goto('/')
+  await page.getByRole('button',{name:'Try a sample'}).click()
+  await page.getByRole('button',{name:'Looks good — choose finish'}).click()
+  for(const selector of ['.stage','.flake-strip','.action-bar']) {
+    const box=(await page.locator(selector).boundingBox())!
+    expect(box.width).toBeGreaterThan(100)
+    expect(box.height).toBeGreaterThan(20)
+    expect(box.y).toBeGreaterThanOrEqual(0)
+    expect(box.y+box.height).toBeLessThanOrEqual(651)
+  }
+  expect(await page.evaluate(()=>document.documentElement.scrollHeight)).toBeLessThanOrEqual(650)
+  const stage=(await page.locator('.stage').boundingBox())!
+  expect(stage.width/stage.height).toBeCloseTo(1000/750,1)
+  await page.getByRole('button',{name:'Choose Dolerite',exact:true}).click()
+  await expect(page.getByRole('button',{name:'Choose Dolerite',exact:true})).toHaveAttribute('aria-pressed','true')
+  expect(await page.evaluate(()=>window.scrollY)).toBe(0)
+  await page.getByRole('button',{name:'Base color',exact:true}).click()
+  await page.getByRole('button',{name:'Base color Tan',exact:true}).click()
+  await expect(page.getByRole('button',{name:'Base color Tan',exact:true})).toHaveAttribute('aria-pressed','true')
+  await page.getByRole('button',{name:'Flakes',exact:true}).click()
+  await expect(page.getByRole('button',{name:'Choose Dolerite',exact:true})).toHaveAttribute('aria-pressed','true')
+  const thumbs=await page.locator('.flake-strip img').evaluateAll((imgs)=>imgs.every(img=>(img as HTMLImageElement).getAttribute('src')?.startsWith('/flakes/')))
+  expect(thumbs).toBe(true)
+})
