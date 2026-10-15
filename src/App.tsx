@@ -109,6 +109,39 @@ function App() {
   const [zip, setZip] = useState('')
   const [contactMethod, setContactMethod] = useState('phone')
   const [requestReviewed, setRequestReviewed] = useState(false)
+  const [estimateEnabled, setEstimateEnabled] = useState(false)
+  const [sendingEstimate, setSendingEstimate] = useState(false)
+  const [leadId, setLeadId] = useState('')
+  const pendingEstimate = useRef<{key: string; body: string} | null>(null)
+  const sendingRef = useRef(false)
+  useEffect(() => {
+    fetch('/api/quote').then(r => r.ok ? r.json() : null).then(data => setEstimateEnabled(data?.enabled === true)).catch(() => {})
+  }, [])
+  async function submitEstimate() {
+    if (!estimateEnabled) { setRequestReviewed(true); return }
+    if (sendingRef.current || !rendered?.canvas) return
+    sendingRef.current = true
+    setSendingEstimate(true)
+    setQuoteStatus('')
+    try {
+      const image = document.createElement('canvas')
+      const scale = Math.min(1, 1200 / Math.max(rendered.canvas.width, rendered.canvas.height))
+      image.width = Math.round(rendered.canvas.width * scale)
+      image.height = Math.round(rendered.canvas.height * scale)
+      const ctx = image.getContext('2d')
+      if (!ctx) throw new Error('Could not prepare your preview.')
+      ctx.drawImage(rendered.canvas, 0, 0, image.width, image.height)
+      const body = JSON.stringify({...quote, phone: contactMethod === 'phone' ? quote.phone : '', email: contactMethod === 'email' ? quote.email : '', zip, selectedSolid, selectedFlake, chipSize, sheen, imageDataUrl: image.toDataURL('image/jpeg', 0.82)})
+      if (pendingEstimate.current?.body !== body) pendingEstimate.current = {key: crypto.randomUUID(), body}
+      const response = await fetch('/api/quote', {method: 'POST', headers: {'Content-Type': 'application/json', 'Idempotency-Key': pendingEstimate.current.key}, body, signal: AbortSignal.timeout(25000)})
+      const result = await response.json()
+      if (!response.ok || !result.ok || !result.leadId) throw new Error(result.error || 'Could not confirm your request. Please retry.')
+      setLeadId(result.leadId)
+      setRequestReviewed(true)
+    } catch (error) {
+      setQuoteStatus(error instanceof Error ? error.message : 'Could not confirm your request. Please retry.')
+    } finally { sendingRef.current = false; setSendingEstimate(false) }
+  }
   const requestVersion = useRef(0)
   const saveRef = useRef<HTMLDivElement>(null)
   useEffect(() => { if (showSave) saveRef.current?.scrollIntoView({block: 'center'}) }, [showSave])
@@ -321,7 +354,7 @@ function App() {
 
   return (
     <main className={`wrap flow-wrap ${step === 2 ? 'finish-workspace' : ''} ${step === 2 && photoFocus ? 'photo-focus' : ''}`}>
-      <div className="preview-banner">Design preview · Estimate requests are not sent or stored.</div>
+      {!estimateEnabled && <div className="preview-banner">Design preview · Estimate requests are not sent or stored.</div>}
       <header className="brand-header">
         <p className="brand-kicker">LuxShield Coatings</p>
         <img src="/luxshield-logo.png" alt="LuxShield Coatings" className="brand-logo" />
@@ -336,7 +369,7 @@ function App() {
         <button className="text-button" onClick={() => loadPhoto('/sample-room.svg', true)}>Try a sample</button>
         <p className="muted">If your in-app browser does not open the camera, open this page in Safari or Chrome, or upload an existing photo.</p>
         <p className="muted">Use a well-lit photo with the floor in view. Original photos work better than screenshots.</p>
-        <details><summary>How your photo is used</summary><p>Your photo is sent to our floor-detection service to identify the floor. Finish previews are rendered on your device. This preview does not save estimate details. Reloading clears your design.</p></details>
+        <details><summary>How your photo is used</summary><p>Your photo is sent to our floor-detection service to identify the floor. Finish previews are rendered on your device. When estimate sending is available, submitting shares your contact details and finished visualization with LuxShield for follow-up. Reloading clears your design.</p></details>
       </section>}
       <input ref={uploadRef} className="visually-hidden" aria-label="Upload floor photo" type="file" accept="image/*" onChange={e => { const file = e.target.files?.[0]; if (file) loadPhoto(URL.createObjectURL(file)); e.target.value = '' }} />
       <input ref={cameraRef} className="visually-hidden" aria-label="Take floor photo" type="file" accept="image/*" capture="environment" onChange={e => { const file = e.target.files?.[0]; if (file) loadPhoto(URL.createObjectURL(file)); e.target.value = '' }} />
@@ -408,15 +441,15 @@ function App() {
           </>}
           {step === 3 && <>
             <p className="muted">Your selected finish and visualization belong with your request. No need to describe them again.</p>
-            {requestReviewed ? <div role="status" className="review-state"><h2>Your request is ready to review.</h2><p><strong>Preview only: nothing was sent or stored.</strong></p><p>{quote.customerName} · {contactMethod === 'phone' ? quote.phone : quote.email} · ZIP {zip}</p><p>{finishLabel}</p><button onClick={() => setRequestReviewed(false)}>Edit details</button></div> : <form onSubmit={e => {e.preventDefault(); setRequestReviewed(true)}}>
+            {requestReviewed ? <div role="status" className="review-state"><h2>{leadId ? "Your estimate request has been submitted." : "Your request is ready to review."}</h2><p><strong>{leadId ? `Reference: ${leadId}. Your request is queued for email delivery to LuxShield.` : "Preview only: nothing was sent or stored."}</strong></p><p>{quote.customerName} · {contactMethod === 'phone' ? quote.phone : quote.email} · ZIP {zip}</p><p>{finishLabel}</p>{!leadId && <button onClick={() => setRequestReviewed(false)}>Edit details</button>}</div> : <form onSubmit={e => {e.preventDefault(); void submitEstimate()}}>
               <label className="field-inline">Name<input required autoComplete="name" value={quote.customerName} onChange={e => setQuote(q => ({...q,customerName:e.target.value}))} /></label>
               <label className="field-inline">Contact me by<select value={contactMethod} onChange={e => setContactMethod(e.target.value)}><option value="phone">Phone</option><option value="email">Email</option></select></label>
               {contactMethod === 'phone' ? <label className="field-inline">Phone<input required type="tel" autoComplete="tel" minLength={7} title="Enter a phone number with at least seven characters" value={quote.phone} onChange={e => setQuote(q => ({...q,phone:e.target.value}))} /></label> : <label className="field-inline">Email<input required type="email" autoComplete="email" value={quote.email} onChange={e => setQuote(q => ({...q,email:e.target.value}))} /></label>}
               <label className="field-inline">ZIP code<input required inputMode="numeric" autoComplete="postal-code" pattern="[0-9]{5}(-[0-9]{4})?" title="Enter a five-digit ZIP code" value={zip} onChange={e => setZip(e.target.value)} /></label>
               <label className="field-inline">Approximate area<select value={quote.squareFeet} onChange={e => setQuote(q => ({...q,squareFeet:e.target.value}))}><option value="">Not sure</option><option>Under 250 sq ft</option><option>250–500 sq ft</option><option>500–800 sq ft</option><option>Over 800 sq ft</option></select></label>
               <details><summary>Add project details (optional)</summary><label className="field-inline">Project address<input autoComplete="street-address" value={quote.address} onChange={e => setQuote(q => ({...q,address:e.target.value}))} /></label><label className="field-inline">Notes<textarea rows={3} value={quote.notes} onChange={e => setQuote(q => ({...q,notes:e.target.value}))} /></label></details>
-              <p className="muted">Preview only. Use test details. This form does not send or save a request.</p>
-              <button className="primary" type="submit">Review request</button>
+              <p className="muted">{estimateEnabled ? "By submitting, you ask LuxShield to contact you about this project. Your selected finish and visualization are included." : "Preview only. Use test details. This form does not send or save a request."}</p>
+              <button className="primary" type="submit" disabled={sendingEstimate}>{sendingEstimate ? "Sending…" : estimateEnabled ? "Send estimate request" : "Review request"}</button>
             </form>}
             <button className="text-button" onClick={() => go(2)}>Back to finishes</button>
           </>}

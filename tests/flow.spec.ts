@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 test('sample flow, editable boundary, back navigation and honest request review', async ({page}) => {
   let submissions = 0
-  await page.route('**/api/quote', route => { submissions++; return route.abort() })
+  await page.route('**/api/quote', route => { if (route.request().method() === 'POST') submissions++; return route.abort() })
   await page.goto('/')
   await expect(page.getByRole('heading', {level:1})).toContainText('See your space')
   await expect(page.getByLabel('Name', {exact:true})).toHaveCount(0)
@@ -84,4 +84,31 @@ test('finish photo, swipe samples and actions fit a short mobile viewport',async
   await expect(page.getByRole('button',{name:'Choose Dolerite',exact:true})).toHaveAttribute('aria-pressed','true')
   const thumbs=await page.locator('.flake-strip img').evaluateAll((imgs)=>imgs.every(img=>(img as HTMLImageElement).getAttribute('src')?.startsWith('/flakes/')))
   expect(thumbs).toBe(true)
+})
+
+test('enabled estimate sends preview, retains details after failure and retries same ID', async ({page}) => {
+  const keys: string[] = []
+  await page.route('**/api/quote', async route => {
+    if (route.request().method() === 'GET') return route.fulfill({json:{enabled:true}})
+    keys.push(route.request().headers()['idempotency-key'])
+    const body = route.request().postDataJSON()
+    expect(body.imageDataUrl).toMatch(/^data:image\/jpeg;base64,/)
+    expect(body.email).toBe('test@example.com')
+    return keys.length === 1 ? route.fulfill({status:502,json:{error:'Please retry.'}}) : route.fulfill({json:{ok:true,leadId:'test-123'}})
+  })
+  await page.goto('/')
+  await page.getByRole('button',{name:'Try a sample'}).click()
+  await page.getByRole('button',{name:'Looks good — choose finish'}).click()
+  await page.getByRole('button',{name:'Get estimate',exact:true}).click()
+  await page.getByLabel('Name',{exact:true}).fill('Test Lead')
+  await page.getByLabel('Contact me by').selectOption('email')
+  await page.getByLabel('Email',{exact:true}).fill('test@example.com')
+  await page.getByLabel('ZIP code').fill('17601')
+  await page.getByRole('button',{name:'Send estimate request'}).click()
+  await expect(page.getByRole('alert')).toContainText('Please retry')
+  await expect(page.getByLabel('Name',{exact:true})).toHaveValue('Test Lead')
+  await page.getByRole('button',{name:'Send estimate request'}).click()
+  await expect(page.getByRole('status')).toContainText('test-123')
+  expect(keys).toHaveLength(2)
+  expect(keys[0]).toBe(keys[1])
 })
