@@ -80,6 +80,7 @@ const solidBaseMap: Record<string, string> = {
   Charcoal: '#454850',
 }
 
+const QUOTE_WEBHOOK_URL = (import.meta.env.VITE_QUOTE_WEBHOOK_URL as string | undefined) || '/api/quote'
 const BRAND_TONE_1 = '#F6CCAA'
 const BRAND_TONE_2 = '#3FCBA2'
 const LOGO_PATH = '/logo-icon.png'
@@ -106,7 +107,7 @@ function App() {
     squareFeet: '',
     notes: '',
   })
-  const submittingQuote = false
+  const [submittingQuote, setSubmittingQuote] = useState(false)
   const [quoteStatus, setQuoteStatus] = useState('')
   const [chipSize, setChipSize] = useState(1)
   const [sheen, setSheen] = useState<'satin' | 'gloss'>('gloss')
@@ -230,9 +231,62 @@ function App() {
   }
 
 
+  async function buildAfterPreviewDataUrl(maxEdge = 1200) {
+    if (!rendered?.canvas) throw new Error('Wait for the preview to finish.')
+    const source = rendered.canvas
+    const scale = Math.min(1, maxEdge / Math.max(source.width, source.height))
+    const { canvas, ctx } = canvas2d(Math.max(1, Math.round(source.width * scale)), Math.max(1, Math.round(source.height * scale)))
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height)
+    return canvas.toDataURL('image/jpeg', 0.94)
+  }
+
   async function submitQuoteRequest() {
-    setQuoteStatus('Preview only: quote requests are not sent. You can save your visualization below.')
-    return
+    if (!imageUrl || !previewReady) {
+      alert('Upload a photo and finish the floor preview first.')
+      return
+    }
+    if (!quote.customerName.trim() || (!quote.phone.trim() && !quote.email.trim())) {
+      alert('Add customer name and at least phone or email.')
+      return
+    }
+
+    setSubmittingQuote(true)
+    setQuoteStatus('Submitting quote request...')
+
+    try {
+      const afterPreview = await buildAfterPreviewDataUrl(1200)
+      const payload = {
+        submittedAt: new Date().toISOString(),
+        projectName: projectName.trim() || 'Epoxy Flooring Proposal',
+        finishLabel,
+        selectedSolid,
+        selectedFlake,
+        compare,
+        customer: quote,
+        company: {
+          companyName,
+          companyContact,
+        },
+        assets: {
+          afterPreviewDataUrl: afterPreview,
+        },
+      }
+
+      const res = await fetch(QUOTE_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) throw new Error(`Request failed (${res.status})`)
+
+      setQuoteStatus('Quote request sent successfully.')
+      setQuote((prev) => ({ ...prev, notes: '' }))
+    } catch {
+      setQuoteStatus('Quote submit failed. Try again or export quote card and send manually.')
+    } finally {
+      setSubmittingQuote(false)
+    }
   }
 
   async function saveDataUrlWithFallback(dataUrl: string, filename: string) {
@@ -435,7 +489,6 @@ function App() {
 
   return (
     <main className="wrap">
-      <div className="preview-banner"><strong>Preview lab</strong> · Mobile flake realism · Quote sending disabled</div>
       <header className="brand-header">
         <div className="brand-copy">
           <p className="brand-kicker">LuxShield Coatings</p>
@@ -687,7 +740,7 @@ Clear Floor Mask
           </label>
         </div>
         <div className="row">
-          <button onClick={submitQuoteRequest} disabled={submittingQuote}>{submittingQuote ? 'Submitting...' : 'Submit Quote Request for Review'}</button>
+          <button onClick={submitQuoteRequest} disabled={submittingQuote || !previewReady}>{submittingQuote ? 'Submitting...' : 'Submit Quote Request for Review'}</button>
           <span className="muted">We will review your request and follow up shortly.</span>
         </div>
         {quoteStatus && <p className="status-msg">{quoteStatus}</p>}

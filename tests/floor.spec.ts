@@ -182,3 +182,26 @@ test('base changes remain visible under flakes without recoloring or moving the 
   await expect(save(page)).toBeEnabled()
   expect((await pixels(page)).data.equals(solidGrey.data)).toBe(false)
 })
+
+test('production quote form sends the rendered floor through the restored workflow', async ({ page }) => {
+  // Intercept the entire submission; this test never creates a lead or sends mail.
+  let payload: { customer: { customerName: string }; assets: { afterPreviewDataUrl: string }; selectedFlake: string } | undefined
+  await page.route('**/api/quote', async route => {
+    payload = route.request().postDataJSON()
+    await route.fulfill({ json: { ok: true, leadId: 'TEST-INTERCEPTED' } })
+  })
+  await setup(page)
+  await expect(page.locator('.preview-banner')).toHaveCount(0)
+  await page.getByLabel('Customer Name').fill('Browser test — not submitted')
+  await page.getByLabel('Phone', { exact: true }).fill('202-555-0100')
+  await page.getByRole('button', { name: 'Submit Quote Request for Review', exact: true }).click()
+  await expect(page.getByText('Quote request sent successfully.', { exact: true })).toBeVisible()
+  expect(payload?.customer.customerName).toBe('Browser test — not submitted')
+  expect(payload?.selectedFlake).toBe('Stonewash')
+  expect(payload?.assets.afterPreviewDataUrl).toMatch(/^data:image\/jpeg;base64,/)
+  const image = await page.evaluate(async data => {
+    const img = new Image(); img.src = data!; await img.decode()
+    return { width: img.naturalWidth, height: img.naturalHeight }
+  }, payload?.assets.afterPreviewDataUrl)
+  expect(image).toEqual({ width: 1200, height: 800 })
+})
