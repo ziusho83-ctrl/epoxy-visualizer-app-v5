@@ -34,12 +34,13 @@ function cellHash(x: number, y: number, seed: number) {
  * modulo sampling, repeated bitmap, or viewport-dependent density reduction.
  */
 function texture(w: number, h: number, top: number, bottom: number, options: FloorOptions) {
-  const key = JSON.stringify([w, h, top, bottom, options.blend, options.tones, options.chipSize])
+  const key = JSON.stringify([w, h, top, bottom, options.blend, options.tones, options.chipSize, options.base])
   if (cachedTexture?.key === key) return cachedTexture.canvas
   const { canvas, ctx } = canvas2d(w, h)
   const image = ctx.createImageData(w, h)
   const pixels = image.data
   const palette = options.tones.map(color => [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16)))
+  const undercoat = [1, 3, 5].map(i => parseInt(options.base.slice(i, i + 2), 16))
   let seed = 2166136261
   for (const char of options.blend) seed = Math.imul(seed ^ char.charCodeAt(0), 16777619)
   const depth = Math.max(1, bottom - top)
@@ -64,7 +65,11 @@ function texture(w: number, h: number, top: number, bottom: number, options: Flo
       // neighborhood so sites beyond adjacent cells cannot produce seams.
       result.x[i] = cx + (hash & 65535) / 65535
       result.y[i] = cy + (hash >>> 16) / 65535
-      const rgb = palette[tint % palette.length]
+      // Small, deterministic openings in the dense broadcast reveal the
+      // opaque base coat. Keep chip locations/colors independent of the base:
+      // changing Grey/Tan/Charcoal must not shuffle or tint all the flakes.
+      const exposedBase = cellHash(cx, cy, seed ^ 0x2c9277b5) / 4294967296 < 0.18
+      const rgb = exposedBase ? undercoat : palette[tint % palette.length]
       const brightness = 0.92 + (tint >>> 16) / 65535 * 0.14
       for (let c = 0; c < 3; c++) result.color[i * 3 + c] = Math.min(255, Math.round(rgb[c] * brightness))
     }

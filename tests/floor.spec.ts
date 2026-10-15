@@ -141,3 +141,44 @@ test('long portrait floor has no repeated clusters at the former tile spacing', 
   console.log('Former-tile correlation (zero is uncorrelated):', correlations)
   expect(Math.max(...correlations)).toBeLessThan(0.2)
 })
+
+test('base changes remain visible under flakes without recoloring or moving the whole pattern', async ({ page }) => {
+  await setup(page)
+  await page.getByLabel('Flake Blend', { exact: false }).selectOption('Nightfall')
+  await expect(save(page)).toBeEnabled()
+  const grey = await pixels(page)
+  await page.getByLabel('Solid Base', { exact: false }).selectOption('Tan')
+  await expect(save(page)).toBeEnabled()
+  const tan = await pixels(page)
+  await page.getByLabel('Solid Base', { exact: false }).selectOption('Charcoal')
+  await expect(save(page)).toBeEnabled()
+  const charcoal = await pixels(page)
+  let samples = 0, changed = 0, redShift = 0, blueShift = 0, darkening = 0
+  for (let y = Math.ceil(grey.height * 0.7); y < grey.height * 0.93; y++) {
+    for (let x = Math.ceil(grey.width * 0.08); x < grey.width * 0.92; x++) {
+      const i = (y * grey.width + x) * 4
+      samples++
+      if (grey.data[i] !== tan.data[i] || grey.data[i + 1] !== tan.data[i + 1] || grey.data[i + 2] !== tan.data[i + 2]) changed++
+      redShift += tan.data[i] - grey.data[i]
+      blueShift += tan.data[i + 2] - grey.data[i + 2]
+      darkening += grey.data[i + 1] - charcoal.data[i + 1]
+    }
+  }
+  // The undercoat changes visibly; most flake pixels remain EXACTLY unchanged.
+  expect(changed / samples).toBeGreaterThan(0.1)
+  expect(changed / samples).toBeLessThan(0.5)
+  expect(redShift / samples).toBeGreaterThan(2)
+  expect(blueShift / samples).toBeLessThan(-3)
+  expect(darkening / samples).toBeGreaterThan(5)
+  expect((await downloadPixels(page, 'Save or Share Final Preview')).data.equals(charcoal.data)).toBe(true)
+  await page.getByLabel('Solid Base', { exact: false }).selectOption('Grey')
+  await expect(save(page)).toBeEnabled()
+  expect((await pixels(page)).data.equals(grey.data)).toBe(true)
+  // The solid-only path must also continue to respect the base selector.
+  await page.getByLabel('Flake Blend', { exact: false }).selectOption('None')
+  await expect(save(page)).toBeEnabled()
+  const solidGrey = await pixels(page)
+  await page.getByLabel('Solid Base', { exact: false }).selectOption('Tan')
+  await expect(save(page)).toBeEnabled()
+  expect((await pixels(page)).data.equals(solidGrey.data)).toBe(false)
+})

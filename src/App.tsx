@@ -565,7 +565,7 @@ Clear Floor Mask
           <img src="/luxshield-logo.png" alt="LuxShield mark" className="section-logo" />
         </div>
         <div className="row" style={{ marginTop: 8 }}>
-          <span className="muted">Full-broadcast coverage • Same detail on mobile and desktop.</span>
+          <span className="muted">Dense flake finish • Same detail on mobile and desktop.</span>
         </div>
         {imageUrl ? (
           <>
@@ -623,7 +623,7 @@ Clear Floor Mask
                 </select>
               </label>
             </div>
-            <p className="muted">Full coverage at every size. Size is a visual adjustment, not a measured chip dimension.</p>
+            <p className="muted">Base color shows between flakes. Choose “None” for a solid-only floor. Flake size is a visual adjustment, not a measured chip dimension.</p>
             <p className="badge">Selected finish: {finishLabel} • {sheen === 'gloss' ? 'Gloss' : 'Satin'} clear coat</p>
 
             <div className="row" style={{ marginTop: 12 }}>

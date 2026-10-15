@@ -27,7 +27,7 @@ Install browsers with `npx playwright install chromium webkit`.
 Optional `CHROMIUM_PATH` points at an existing Chromium executable.
 `PREVIEW_URL` runs the browser suite against the deployed preview instead of localhost.
 
-Ten checks across mobile Chromium and mobile WebKit cover export pixel equality,
+Twelve checks across mobile Chromium and mobile WebKit cover export pixel equality,
 unchanged outside-mask photo pixels (including a concave boundary), viewport invariance,
 opaque output, size/finish/palette/None controls, mask reset, portrait size bounds,
 sharing cancellation, and long-portrait non-repetition at the former tile spacing. Browser suite stubs only the segmentation response;
@@ -50,3 +50,15 @@ nearby site rows plus one full-frame material are cached.
 The regression test fails against the old deployed renderer (correlation
 0.90–0.96 at the repeating tile period), and passes against the new material.
 Density, preview/export parity, and production isolation are unchanged.
+
+## Base-coat visibility fix (October 15 follow-up)
+Vu approved the new textures but found that the base selector had no effect
+with flakes enabled. The opaque chip field completely covered the base fill,
+and its cache did not include the selected base.
+- Preserve chip locations and blend colors; expose the base in a deterministic
+  18% subset of small chip-scale cells. This is a dense broadcast approximation,
+  not a literal 100%-flake broadcast. UI wording now says dense flake finish.
+- Include base in the material-cache key. No-flake mode stays fully solid.
+- Grey/Tan/Charcoal regression checks visible warm/dark shifts, unchanged
+  majority flake pixels, deterministic roundtrip to Grey, and exported pixels.
+- The test fails old deployed renderer (zero changed pixels); new tests pass.
