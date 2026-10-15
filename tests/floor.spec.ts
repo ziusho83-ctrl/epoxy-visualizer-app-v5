@@ -1,0 +1,116 @@
+import { test, expect, type Page } from '@playwright/test'
+import { PNG } from 'pngjs'
+
+test.beforeEach(async ({ page }) => {
+  // Exercise downloads deterministically; the dedicated share test overrides this.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => false })
+  })
+})
+
+const points = [{ x: 5, y: 45 }, { x: 65, y: 45 }, { x: 65, y: 62 }, { x: 95, y: 62 }, { x: 95, y: 97 }, { x: 5, y: 97 }]
+function fixture(width = 1200, height = 800) {
+  return { name: 'test-room.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><defs><linearGradient id="g"><stop stop-color="#4e595a"/><stop offset="1" stop-color="#ddddcc"/></linearGradient></defs><path fill="#bd805d" d="M0 0H${width}V${height}H0Z"/><path fill="url(#g)" d="M0 ${height * 0.4}H${width}V${height}H0Z"/></svg>`) }
+}
+const save = (page: Page) => page.getByRole('button', { name: 'Save or Share Final Preview', exact: true })
+async function setup(page: Page, width = 1200, height = 800) {
+  await page.route('**/api/auto-mask', route => route.fulfill({ json: { points } }))
+  await page.goto('/')
+  await page.locator('input[type=file]').setInputFiles(fixture(width, height))
+  await page.getByRole('button', { name: 'Auto-Detect Floor (Beta)', exact: true }).click()
+  await expect(save(page)).toBeEnabled()
+  await expect(page.locator('.floor-canvas')).toHaveJSProperty('width', Math.round(width * Math.min(1, 1800 / Math.max(width, height))))
+}
+async function pixels(page: Page) {
+  const data = await page.locator('.floor-canvas').evaluate((c: HTMLCanvasElement) => c.toDataURL())
+  return PNG.sync.read(Buffer.from(data.split(',')[1], 'base64'))
+}
+async function downloadPixels(page: Page, button: string) {
+  const promise = page.waitForEvent('download')
+  await page.getByRole('button', { name: button, exact: true }).click()
+  const stream = await (await promise).createReadStream()
+  const chunks: Buffer[] = []
+  for await (const chunk of stream!) chunks.push(chunk)
+  return PNG.sync.read(Buffer.concat(chunks))
+}
+
+test('same full-density image on mobile, desktop, and export; photo and concave mask preserved', async ({ page }) => {
+  await setup(page)
+  const before = await pixels(page)
+  expect(await page.locator('.compare-stage svg').count()).toBe(0)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  const outside = await page.evaluate(() => {
+    const img = document.querySelector('.compare-stage img') as HTMLImageElement
+    const after = document.querySelector('.floor-canvas') as HTMLCanvasElement
+    const c = document.createElement('canvas'); c.width = after.width; c.height = after.height
+    const ctx = c.getContext('2d')!; ctx.drawImage(img, 0, 0, c.width, c.height)
+    const original = ctx.getImageData(0, 0, c.width, c.height).data
+    const edited = after.getContext('2d')!.getImageData(0, 0, c.width, c.height).data
+    let changedOutside = 0, opaque = true
+    const floorColors = new Set<string>()
+    for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
+      const i = (y * c.width + x) * 4
+      if (y < c.height * 0.43 || (x > c.width * 0.68 && y < c.height * 0.59)) {
+        if (original[i] !== edited[i] || original[i + 1] !== edited[i + 1] || original[i + 2] !== edited[i + 2]) changedOutside++
+      }
+      if (edited[i + 3] !== 255) opaque = false
+      if (x > c.width * 0.2 && x < c.width * 0.4 && y > c.height * 0.8 && y < c.height * 0.9) floorColors.add(`${edited[i]},${edited[i + 1]},${edited[i + 2]}`)
+    }
+    return { changedOutside, opaque, floorColors: floorColors.size }
+  })
+  expect(outside.changedOutside).toBe(0)
+  expect(outside.opaque).toBe(true)
+  expect(outside.floorColors).toBeGreaterThan(100)
+  const exported = await downloadPixels(page, 'Save or Share Final Preview')
+  expect(exported.data.equals(before.data)).toBe(true)
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  expect((await pixels(page)).data.equals(before.data)).toBe(true)
+  await page.locator('input[type=number]').fill('50')
+  const comparison = await downloadPixels(page, 'Save or Share Comparison')
+  const left = (Math.floor(before.height * 0.85) * before.width + Math.floor(before.width * 0.25)) * 4
+  expect(comparison.data.subarray(left, left + 4).equals(before.data.subarray(left, left + 4))).toBe(true)
+})
+
+test('size, finish, blend, None and mask-clear controls produce current results', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
+  await setup(page)
+  const initial = await pixels(page)
+  await page.getByLabel('Apparent flake size').selectOption('1.5')
+  await page.getByLabel('Clear-coat finish').selectOption('satin')
+  await expect(save(page)).toBeEnabled()
+  expect((await pixels(page)).data.equals(initial.data)).toBe(false)
+  await page.getByLabel('Flake Blend', { exact: false }).selectOption('None')
+  await expect(save(page)).toBeEnabled()
+  const solid = await pixels(page)
+  expect(solid.data.equals(initial.data)).toBe(false)
+  await page.getByLabel('Flake Blend', { exact: false }).selectOption('Nightfall')
+  await expect(save(page)).toBeEnabled()
+  expect((await pixels(page)).data.equals(solid.data)).toBe(false)
+  await page.getByRole('button', { name: 'Clear Floor Mask', exact: true }).click()
+  await expect(save(page)).toBeDisabled()
+  expect(errors).toEqual([])
+})
+
+test('portrait images stay bounded and export opaque', async ({ page }) => {
+  await setup(page, 2400, 4200)
+  const output = await pixels(page)
+  expect(output.height).toBe(1800)
+  expect(output.width).toBe(1029)
+  const exported = await downloadPixels(page, 'Save or Share Final Preview')
+  expect(exported.data.equals(output.data)).toBe(true)
+})
+
+test('share cancellation does not trigger an unwanted download', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => true })
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async (data: ShareData) => {
+      document.documentElement.dataset.sharedType = data.files?.[0].type
+      throw new DOMException('Cancelled', 'AbortError')
+    } })
+  })
+  await setup(page)
+  let downloaded = false; page.on('download', () => { downloaded = true })
+  await save(page).click()
+  await expect(page.locator('html')).toHaveAttribute('data-shared-type', 'image/png')
+  expect(downloaded).toBe(false)
+})

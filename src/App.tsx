@@ -1,18 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { flakeBlends, solidColors } from './data/palette'
+import { FloorPreview } from './rendering/FloorPreview'
+import { useFloorPreview } from './rendering/useFloorPreview'
+import { canvas2d } from './rendering/floor'
 
 type Point = { x: number; y: number }
-
-type Flake = {
-  x: number      // 0-100
-  y: number      // 0-100
-  w: number      // base width in 0-100 space
-  h: number      // base height
-  angle: number  // rotation 0-360
-  c: number      // color index
-  bright: number // brightness variation 0.92-1.08
-}
 
 type QuoteRequest = {
   customerName: string
@@ -25,9 +18,9 @@ type QuoteRequest = {
 
 /* ── V5 color helpers ── */
 function hexToHsl(hex: string): [number, number, number] {
-  let r = parseInt(hex.slice(1, 3), 16) / 255
-  let g = parseInt(hex.slice(3, 5), 16) / 255
-  let b = parseInt(hex.slice(5, 7), 16) / 255
+  const r = parseInt(hex.slice(1, 3), 16) / 255
+  const g = parseInt(hex.slice(3, 5), 16) / 255
+  const b = parseInt(hex.slice(5, 7), 16) / 255
   const max = Math.max(r, g, b), min = Math.min(r, g, b)
   let h = 0, s = 0
   const l = (max + min) / 2
@@ -87,67 +80,6 @@ const solidBaseMap: Record<string, string> = {
   Charcoal: '#454850',
 }
 
-function seededFlakes(seed: string, count = 80000, toneCount = 3): Flake[] {
-  // Full-flake coverage: chips overlap to cover 100% of the floor surface.
-  // Real epoxy full-flake has no base color visible — just chips on chips.
-  let h = 2166136261
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  const rand = () => {
-    h += 0x6d2b79f5
-    let t = Math.imul(h ^ (h >>> 15), 1 | h)
-    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-
-  const flakes: Flake[] = []
-  for (let i = 0; i < count; i++) {
-    // Uniform small chip size with slight variation (like real flake chips)
-    const baseW = 0.04 + rand() * 0.03 // tight range: 0.35-0.60
-    const aspect = 0.65 + rand() * 0.70 // slightly irregular
-    const baseH = baseW * aspect
-    flakes.push({
-      x: rand() * 100,
-      y: rand() * 100,
-      w: baseW,
-      h: baseH,
-      angle: rand() * 360,
-      c: Math.floor(rand() * toneCount),
-      bright: 0.82 + rand() * 0.36, // stronger brightness variation so flake colors read clearly
-    })
-  }
-  return flakes
-}
-
-function adjustBrightness(hex: string, factor: number): string {
-  const r = Math.min(255, Math.max(0, Math.round(parseInt(hex.slice(1, 3), 16) * factor)))
-  const g = Math.min(255, Math.max(0, Math.round(parseInt(hex.slice(3, 5), 16) * factor)))
-  const b = Math.min(255, Math.max(0, Math.round(parseInt(hex.slice(5, 7), 16) * factor)))
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
-}
-
-function blendAverage(hexes: string[]): string {
-  if (!hexes.length) return '#888888'
-  const totals = hexes.reduce(
-    (acc, hex) => {
-      acc.r += parseInt(hex.slice(1, 3), 16)
-      acc.g += parseInt(hex.slice(3, 5), 16)
-      acc.b += parseInt(hex.slice(5, 7), 16)
-      return acc
-    },
-    { r: 0, g: 0, b: 0 },
-  )
-  const n = hexes.length
-  return `#${Math.round(totals.r / n).toString(16).padStart(2, '0')}${Math.round(totals.g / n).toString(16).padStart(2, '0')}${Math.round(totals.b / n).toString(16).padStart(2, '0')}`
-}
-
-function perspectiveScale(y: number): number {
-  return 0.5 + (y / 100) * 1.0
-}
-
-const QUOTE_WEBHOOK_URL = (import.meta.env.VITE_QUOTE_WEBHOOK_URL as string | undefined) || '/api/quote'
 const BRAND_TONE_1 = '#F6CCAA'
 const BRAND_TONE_2 = '#3FCBA2'
 const LOGO_PATH = '/logo-icon.png'
@@ -174,9 +106,10 @@ function App() {
     squareFeet: '',
     notes: '',
   })
-  const [submittingQuote, setSubmittingQuote] = useState(false)
+  const submittingQuote = false
   const [quoteStatus, setQuoteStatus] = useState('')
-  const [isMobilePreview, setIsMobilePreview] = useState(false)
+  const [chipSize, setChipSize] = useState(1)
+  const [sheen, setSheen] = useState<'satin' | 'gloss'>('gloss')
   const compareRef = useRef<HTMLDivElement | null>(null)
 
   const isQuoteReady = useMemo(() => {
@@ -193,67 +126,19 @@ function App() {
 
   const polygonPointsAttr = useMemo(() => maskPoints.map((p) => `${p.x},${p.y}`).join(' '), [maskPoints])
 
-  const insetPolygonPointsAttr = useMemo(() => {
-    if (maskPoints.length < 3) return ''
-
-    const cx = maskPoints.reduce((sum, p) => sum + p.x, 0) / maskPoints.length
-    const cy = maskPoints.reduce((sum, p) => sum + p.y, 0) / maskPoints.length
-    const insetAmount = 0.8
-
-    return maskPoints
-      .map((p) => {
-        const dx = cx - p.x
-        const dy = cy - p.y
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        if (dist < 0.01) return `${p.x},${p.y}`
-        const ratio = insetAmount / dist
-        return `${p.x + dx * ratio},${p.y + dy * ratio}`
-      })
-      .join(' ')
-  }, [maskPoints])
-
   const flakeTones = flakeToneMap[selectedFlake] ?? ['#d0d4db', '#8f96a4', '#59606f']
   const baseSolidRaw = solidBaseMap[selectedSolid] ?? '#7d8289'
   // V5: deepened base for wet-look clear-coat effect
   const baseSolid = deepenColor(baseSolidRaw)
-  const flakeBlendWash = useMemo(() => {
-    if (selectedFlake === 'None') return baseSolid
-    const avg = blendAverage(flakeTones)
-    return deepenColor(avg)
-  }, [selectedFlake, flakeTones, baseSolid])
+  const rendered = useFloorPreview(imageUrl, {
+    points: maskPoints, tones: flakeTones, blend: selectedFlake,
+    base: baseSolid, chipSize, sheen,
+  })
+  const previewReady = Boolean(rendered?.canvas && maskPoints.length >= 3)
 
-  const exportFlakes = useMemo(
-    () => [
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-macro`, 110000, flakeTones.length).map((f) => ({ ...f, w: f.w * 5.8, h: f.h * 5.8 })),
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-export-micro`, 180000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.8, h: f.h * 1.8 })),
-    ],
-    [selectedSolid, selectedFlake, flakeTones.length],
-  )
-
-  const liveFlakes = useMemo(
-    () => [
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-macro`, isMobilePreview ? 32000 : 110000, flakeTones.length).map((f) => ({ ...f, w: f.w * 5.8, h: f.h * 5.8 })),
-      ...seededFlakes(`${selectedSolid}-${selectedFlake}-live-micro`, isMobilePreview ? 38000 : 180000, flakeTones.length).map((f) => ({ ...f, w: f.w * 1.8, h: f.h * 1.8 })),
-    ],
-    [selectedSolid, selectedFlake, flakeTones.length, isMobilePreview],
-  )
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const mq = window.matchMedia('(max-width: 768px)')
-    const apply = () => setIsMobilePreview(mq.matches)
-    apply()
-    mq.addEventListener?.('change', apply)
-    return () => mq.removeEventListener?.('change', apply)
-  }, [])
-
-  // Keep segmentation model warm — ping on load then every 60s while page is open
-  useEffect(() => {
-    const ping = () => fetch('/api/warmup').catch(() => {})
-    const t = setTimeout(ping, 3000)
-    const iv = setInterval(ping, 60_000)
-    return () => { clearTimeout(t); clearInterval(iv) }
-  }, [])
+  useEffect(() => () => {
+    if (imageUrl.startsWith('blob:')) URL.revokeObjectURL(imageUrl)
+  }, [imageUrl])
 
   function toNormalizedPoint(clientX: number, clientY: number, rect: DOMRect) {
     const x = ((clientX - rect.left) / rect.width) * 100
@@ -345,185 +230,9 @@ function App() {
   }
 
 
-  function drawAfterOverlay(
-    ctx: CanvasRenderingContext2D,
-    w: number,
-    h: number,
-    flakes: Flake[],
-  ) {
-    if (maskPoints.length < 3) return
-
-    const pts = maskPoints.map((p) => ({ x: (p.x / 100) * w, y: (p.y / 100) * h }))
-
-    ctx.save()
-    ctx.beginPath()
-    ctx.moveTo(pts[0].x, pts[0].y)
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
-    ctx.closePath()
-    ctx.clip()
-
-    // V5: deepened solid base (clear-coat saturation boost)
-    ctx.globalAlpha = 1
-    ctx.fillStyle = baseSolid
-    ctx.fillRect(0, 0, w, h)
-    ctx.globalAlpha = 1
-
-    // Semi-transparent blend wash between base coat and flakes for fuller coverage
-    if (selectedFlake !== 'None') {
-      ctx.globalAlpha = 0.28
-      ctx.fillStyle = flakeBlendWash
-      ctx.fillRect(0, 0, w, h)
-      ctx.globalAlpha = 1
-    }
-
-    // Realistic flake broadcast with perspective scaling
-    if (selectedFlake !== 'None') {
-      for (const d of flakes) {
-        const pScale = perspectiveScale(d.y)
-        const fw = Math.max(1.35, d.w * pScale * (w / 100))
-        const fh = Math.max(1.1, d.h * pScale * (w / 100))
-        const px = (d.x / 100) * w
-        const py = (d.y / 100) * h
-        const color = adjustBrightness(flakeTones[d.c], d.bright)
-
-        ctx.save()
-        ctx.globalAlpha = 1
-        ctx.fillStyle = color
-        ctx.translate(px, py)
-        ctx.rotate((d.angle * Math.PI) / 180)
-        ctx.fillRect(-fw / 2, -fh / 2, fw, fh)
-        ctx.restore()
-      }
-    }
-
-    // V5: wet-look darkening layer (clear coat over flakes)
-    ctx.globalAlpha = 0.10
-    ctx.fillStyle = '#000000'
-    ctx.fillRect(0, 0, w, h)
-    ctx.globalAlpha = 1
-
-    // Subtle texture so the floor reads as coated material (not a flat block)
-    for (let i = 0; i < 1200; i++) {
-      const x = Math.random() * w
-      const y = Math.random() * h
-      const shade = Math.random() > 0.5 ? 255 : 0
-      const alpha = 0.02 + Math.random() * 0.03
-      ctx.fillStyle = `rgba(${shade},${shade},${shade},${alpha})`
-      ctx.fillRect(x, y, 1, 1)
-    }
-
-    // V5: perspective-aware Fresnel gloss (vertical, strong at top)
-    const g1 = ctx.createLinearGradient(0, 0, 0, h)
-    g1.addColorStop(0, 'rgba(255,255,255,0.65)')
-    g1.addColorStop(0.40, 'rgba(255,255,255,0.35)')
-    g1.addColorStop(0.70, 'rgba(255,255,255,0.15)')
-    g1.addColorStop(1, 'rgba(255,255,255,0.0)')
-    ctx.globalAlpha = 0.78
-    ctx.fillStyle = g1
-    ctx.fillRect(0, 0, w, h)
-
-    // V5: centered specular hotspot in upper floor area
-    const g2 = ctx.createRadialGradient(w * 0.50, h * 0.25, 0, w * 0.50, h * 0.25, Math.max(w, h) * 0.50)
-    g2.addColorStop(0, 'rgba(255,255,255,0.70)')
-    g2.addColorStop(0.40, 'rgba(255,255,255,0.30)')
-    g2.addColorStop(1, 'rgba(255,255,255,0.0)')
-    ctx.globalAlpha = 0.65
-    ctx.fillStyle = g2
-    ctx.fillRect(0, 0, w, h)
-
-    // V5: flake specularity highlights on medium+ flakes in upper floor
-    if (selectedFlake !== 'None') {
-      for (const d of flakes) {
-        if (d.y > 50) continue
-        if (d.w < 0.30) continue
-        const pScale = perspectiveScale(d.y)
-        const fw = d.w * pScale * (w / 100)
-        const specR = fw * 0.15
-        const dx = d.x - 50, dy = d.y - 30
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        const op = Math.max(0, Math.min(0.85, 1.0 - dist / 45))
-        if (op < 0.05) continue
-        ctx.globalAlpha = op
-        ctx.fillStyle = '#ffffff'
-        ctx.beginPath()
-        ctx.arc((d.x / 100) * w - specR * 0.6, (d.y / 100) * h - specR * 0.6, specR, 0, Math.PI * 2)
-        ctx.fill()
-      }
-    }
-
-
-    ctx.restore()
-    ctx.globalAlpha = 1
-  }
-
-  async function buildAfterPreviewDataUrl(maxWidth = 1200) {
-    const img = new Image()
-    img.src = imageUrl
-    await img.decode()
-
-    const scale = img.naturalWidth > maxWidth ? maxWidth / img.naturalWidth : 1
-    const w = Math.max(1, Math.round(img.naturalWidth * scale))
-    const h = Math.max(1, Math.round(img.naturalHeight * scale))
-
-    const canvas = document.createElement('canvas')
-    canvas.width = w
-    canvas.height = h
-    const ctx = canvas.getContext('2d')
-    if (!ctx) throw new Error('Canvas not supported')
-
-    ctx.drawImage(img, 0, 0, w, h)
-    drawAfterOverlay(ctx, w, h, exportFlakes)
-
-    return canvas.toDataURL('image/jpeg', 0.9)
-  }
-
   async function submitQuoteRequest() {
-    if (!imageUrl) {
-      alert('Upload a garage photo first.')
-      return
-    }
-    if (!quote.customerName.trim() || (!quote.phone.trim() && !quote.email.trim())) {
-      alert('Add customer name and at least phone or email.')
-      return
-    }
-
-    setSubmittingQuote(true)
-    setQuoteStatus('Submitting quote request...')
-
-    try {
-      const afterPreview = await buildAfterPreviewDataUrl(1200)
-      const payload = {
-        submittedAt: new Date().toISOString(),
-        projectName: projectName.trim() || 'Epoxy Flooring Proposal',
-        finishLabel,
-        selectedSolid,
-        selectedFlake,
-        compare,
-        customer: quote,
-        company: {
-          companyName,
-          companyContact,
-        },
-        assets: {
-          afterPreviewDataUrl: afterPreview,
-        },
-      }
-
-      const res = await fetch(QUOTE_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (!res.ok) throw new Error(`Request failed (${res.status})`)
-
-      setQuoteStatus('Quote request sent successfully.')
-      setQuote((prev) => ({ ...prev, notes: '' }))
-    } catch {
-      setQuoteStatus('Quote submit failed. Try again or export quote card and send manually.')
-    } finally {
-      setSubmittingQuote(false)
-    }
+    setQuoteStatus('Preview only: quote requests are not sent. You can save your visualization below.')
+    return
   }
 
   async function saveDataUrlWithFallback(dataUrl: string, filename: string) {
@@ -532,12 +241,13 @@ function App() {
     try {
       const res = await fetch(dataUrl)
       const blob = await res.blob()
-      const file = new File([blob], filename, { type: 'image/png' })
+      const file = new File([blob], filename, { type: blob.type })
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: 'Epoxy Preview' })
         return
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
       // continue to download fallback
     }
 
@@ -572,20 +282,9 @@ function App() {
         return
       }
 
-      const img = new Image()
-      img.src = imageUrl
-      await img.decode()
-
-      const w = img.naturalWidth
-      const h = img.naturalHeight
-
-      const afterCanvas = document.createElement('canvas')
-      afterCanvas.width = w
-      afterCanvas.height = h
-      const afterCtx = afterCanvas.getContext('2d')
-      if (!afterCtx) return
-      afterCtx.drawImage(img, 0, 0, w, h)
-      drawAfterOverlay(afterCtx, w, h, exportFlakes)
+      if (!rendered?.canvas || !rendered.photo || !previewReady) return
+      const img = rendered.photo
+      const afterCanvas = rendered.canvas
 
       const outW = 1600
       const headerH = 240
@@ -689,7 +388,7 @@ function App() {
       ctx.font = '27px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
       ctx.fillStyle = BRAND_TONE_1
       ctx.fillText(`Finish: ${finishLabel}`, margin, outH - 98)
-      ctx.fillText('System: Decorative flake epoxy with high-gloss topcoat', margin, outH - 62)
+      ctx.fillText(`System: Decorative flake epoxy with ${sheen} topcoat`, margin, outH - 62)
 
       ctx.font = '20px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'
       ctx.fillStyle = BRAND_TONE_1
@@ -708,28 +407,11 @@ function App() {
     try {
       if (!imageUrl) return
 
-      const img = new Image()
-      img.src = imageUrl
-      await img.decode()
-
-      const maxDim = 1600
-      const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight))
-      const w = Math.max(1, Math.round(img.naturalWidth * scale))
-      const h = Math.max(1, Math.round(img.naturalHeight * scale))
-
-      const afterCanvas = document.createElement('canvas')
-      afterCanvas.width = w
-      afterCanvas.height = h
-      const afterCtx = afterCanvas.getContext('2d')
-      if (!afterCtx) return
-      afterCtx.drawImage(img, 0, 0, w, h)
-      drawAfterOverlay(afterCtx, w, h, exportFlakes)
-
-      const canvas = document.createElement('canvas')
-      canvas.width = w
-      canvas.height = h
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
+      if (!rendered?.canvas || !rendered.photo || !previewReady) return
+      const img = rendered.photo
+      const afterCanvas = rendered.canvas
+      const w = afterCanvas.width, h = afterCanvas.height
+      const { canvas, ctx } = canvas2d(w, h)
 
       if (kind === 'after') {
         ctx.drawImage(afterCanvas, 0, 0)
@@ -753,6 +435,7 @@ function App() {
 
   return (
     <main className="wrap">
+      <div className="preview-banner"><strong>Preview lab</strong> · Mobile flake realism · Quote sending disabled</div>
       <header className="brand-header">
         <div className="brand-copy">
           <p className="brand-kicker">LuxShield Coatings</p>
@@ -882,95 +565,18 @@ Clear Floor Mask
           <img src="/luxshield-logo.png" alt="LuxShield mark" className="section-logo" />
         </div>
         <div className="row" style={{ marginTop: 8 }}>
-          <span className="muted">Preview and export quality: Ultra.</span>
+          <span className="muted">Full-broadcast coverage • Same detail on mobile and desktop.</span>
         </div>
         {imageUrl ? (
           <>
-            <div className="stage compare-stage" ref={compareRef}>
+            {!rendered && <p className="status-msg" role="status">Rendering your floor…</p>}
+            {rendered?.error && <p className="status-msg" role="alert">{rendered.error}</p>}
+            <div className="stage compare-stage" ref={compareRef} aria-busy={!rendered}>
               <img src={imageUrl} alt="garage before" className="preview" />
 
               <div className="after-layer" style={{ clipPath: `inset(0 ${100 - compare}% 0 0)` }}>
-                <img src={imageUrl} alt="garage after" className="preview after-preview" />
-                <svg className="mask-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  <defs>
-                    <clipPath id="floorClip">
-                      {maskPoints.length >= 3 && <polygon points={insetPolygonPointsAttr} />}
-                    </clipPath>
-                    <linearGradient id="glossGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="white" stopOpacity={0.48} />
-                      <stop offset="40%" stopColor="white" stopOpacity={0.24} />
-                      <stop offset="70%" stopColor="white" stopOpacity={0.16} />
-                      <stop offset="100%" stopColor="white" stopOpacity={0.0} />
-                    </linearGradient>
-                    <radialGradient id="glossSpot" cx="50%" cy="25%" r="50%">
-                      <stop offset="0%" stopColor="white" stopOpacity={0.48} />
-                      <stop offset="40%" stopColor="white" stopOpacity={0.18} />
-                      <stop offset="100%" stopColor="white" stopOpacity={0.0} />
-                    </radialGradient>
-                  </defs>
-
-                  {maskPoints.length >= 3 && <polygon className="overlay-base" points={polygonPointsAttr} fill={baseSolid} />}
-                  {maskPoints.length >= 3 && selectedFlake !== 'None' && <polygon className="overlay-blend-wash" points={polygonPointsAttr} fill={flakeBlendWash} />}
-
-                  {maskPoints.length >= 3 && selectedFlake !== 'None' && (
-                    <g clipPath="url(#floorClip)">
-                      {liveFlakes.map((d, i) => {
-                        const pScale = perspectiveScale(d.y)
-                        const fw = d.w * pScale
-                        const fh = d.h * pScale
-                        const color = adjustBrightness(flakeTones[d.c], d.bright)
-                        return (
-                          <rect
-                            key={`flake-${i}`}
-                            x={d.x - fw / 2}
-                            y={d.y - fh / 2}
-                            width={fw}
-                            height={fh}
-                            rx={fw * 0.1}
-                            fill={color}
-                            opacity={1}
-                            transform={`rotate(${d.angle}, ${d.x}, ${d.y})`}
-                          />
-                        )
-                      })}
-                    </g>
-                  )}
-
-                  {maskPoints.length >= 3 && (
-                    <polygon className="overlay-wet" points={polygonPointsAttr} fill="black" />
-                  )}
-
-                  {maskPoints.length >= 3 && <polygon className="overlay-gloss" points={polygonPointsAttr} fill="url(#glossGradient)" />}
-                  {maskPoints.length >= 3 && <polygon className="overlay-gloss-spot" points={polygonPointsAttr} fill="url(#glossSpot)" />}
-
-                  {maskPoints.length >= 3 && selectedFlake !== 'None' && (
-                    <g clipPath="url(#floorClip)">
-                      {liveFlakes.map((d, i) => {
-                        if (d.y > 50) return null
-                        if (d.w < 0.30) return null
-                        const pScale = perspectiveScale(d.y)
-                        const fw = d.w * pScale
-                        const specR = fw * 0.15
-                        const dx = d.x - 50, dy = d.y - 30
-                        const dist = Math.sqrt(dx * dx + dy * dy)
-                        const op = Math.max(0, Math.min(0.85, 1.0 - dist / 45))
-                        if (op < 0.05) return null
-                        return (
-                          <circle
-                            key={`spec-${i}`}
-                            cx={d.x - specR * 0.6}
-                            cy={d.y - specR * 0.6}
-                            r={specR}
-                            fill="white"
-                            opacity={op}
-                          />
-                        )
-                      })}
-                    </g>
-                  )}
-                </svg>
+                <FloorPreview source={rendered?.canvas} />
               </div>
-
               <div className="compare-handle" style={{ left: `${compare}%` }} />
             </div>
 
@@ -1000,7 +606,25 @@ Clear Floor Mask
               </label>
             </div>
 
-            <p className="badge">Selected finish: {finishLabel} • High-gloss appearance</p>
+            <div className="row two-col finish-controls">
+              <label className="field-inline">
+                <span>Apparent flake size</span>
+                <select aria-label="Apparent flake size" value={chipSize} onChange={e => setChipSize(Number(e.target.value))}>
+                  <option value={0.65}>Fine</option>
+                  <option value={1}>Standard</option>
+                  <option value={1.5}>Bold</option>
+                </select>
+              </label>
+              <label className="field-inline">
+                <span>Clear-coat finish</span>
+                <select aria-label="Clear-coat finish" value={sheen} onChange={e => setSheen(e.target.value as 'satin' | 'gloss')}>
+                  <option value="gloss">Gloss</option>
+                  <option value="satin">Satin</option>
+                </select>
+              </label>
+            </div>
+            <p className="muted">Full coverage at every size. Size is a visual adjustment, not a measured chip dimension.</p>
+            <p className="badge">Selected finish: {finishLabel} • {sheen === 'gloss' ? 'Gloss' : 'Satin'} clear coat</p>
 
             <div className="row" style={{ marginTop: 12 }}>
               <label className="slider-label">Before / After Preview: {compare}%</label>
@@ -1016,8 +640,8 @@ Clear Floor Mask
                 }}
                 style={{ width: 86 }}
               />
-              <button onClick={() => exportPreviewImage('comparison')}>Save or Share Comparison</button>
-              <button onClick={() => exportPreviewImage('after')}>Save or Share Final Preview</button>
+              <button disabled={!previewReady} onClick={() => exportPreviewImage('comparison')}>Save or Share Comparison</button>
+              <button disabled={!previewReady} onClick={() => exportPreviewImage('after')}>Save or Share Final Preview</button>
             </div>
           </>
         ) : (
@@ -1083,7 +707,7 @@ Clear Floor Mask
           </label>
         </div>
         <div className="row" style={{ marginTop: 8 }}>
-          <button onClick={exportQuoteCard} disabled={!isQuoteReady}>Export Digital Visualization</button>
+          <button onClick={exportQuoteCard} disabled={!isQuoteReady || !previewReady}>Export Digital Visualization</button>
           {!isQuoteReady && <span className="muted">Please complete Section 4 (name and phone or email) and upload a photo first.</span>}
         </div>
       </section>

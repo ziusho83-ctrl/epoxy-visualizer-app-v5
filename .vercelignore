@@ -1,0 +1,9 @@
+.git
+node_modules
+dist
+.env*
+tests
+test-results
+playwright-report
+playwright.config.ts
+PREVIEW_NOTES.md

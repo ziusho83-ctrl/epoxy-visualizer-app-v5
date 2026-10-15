@@ -44,11 +44,9 @@ async function traceMaskContour(maskBuf: Buffer): Promise<Pt[]> {
   // Build a binary occupancy grid. Mask is white=foreground, black=background.
   // Also handle the inverse case just in case.
   const occ = new Uint8Array(w * h)
-  let whiteCount = 0
   for (let i = 0; i < w * h; i++) {
     if (data[i] > 128) {
       occ[i] = 1
-      whiteCount++
     }
   }
 
