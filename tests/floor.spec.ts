@@ -114,3 +114,30 @@ test('share cancellation does not trigger an unwanted download', async ({ page }
   await expect(page.locator('html')).toHaveAttribute('data-shared-type', 'image/png')
   expect(downloaded).toBe(false)
 })
+
+test('long portrait floor has no repeated clusters at the former tile spacing', async ({ page }) => {
+  await setup(page, 900, 1800)
+  const correlations = await page.locator('.floor-canvas').evaluate((canvas: HTMLCanvasElement) => {
+    const w = canvas.width, h = canvas.height
+    const data = canvas.getContext('2d')!.getImageData(0, 0, w, h).data
+    const top = Math.floor(h * 0.45), bottom = Math.ceil(h * 0.97)
+    const green = (x: number, y: number) => data[(y * w + x) * 4 + 1]
+    const highpass = (x: number, y: number) => green(x, y) - (green(x - 6, y) + green(x + 6, y)) / 2
+    return [0.5, 0.7, 0.9].map(t => {
+      let aa = 0, bb = 0, ab = 0
+      const center = Math.floor(top + t * (bottom - top))
+      for (let y = center - 6; y <= center + 6; y++) {
+        const lag = 1024 * (w / 1200) * 0.48 * (0.32 + 0.95 * (y - top) / (bottom - top))
+        const offset = Math.floor(lag), fraction = lag - offset
+        for (let x = Math.ceil(w * 0.08); x < w * 0.92 - offset - 8; x++) {
+          const a = highpass(x, y)
+          const b = highpass(x + offset, y) * (1 - fraction) + highpass(x + offset + 1, y) * fraction
+          aa += a * a; bb += b * b; ab += a * b
+        }
+      }
+      return ab / Math.sqrt(aa * bb)
+    })
+  })
+  console.log('Former-tile correlation (zero is uncorrelated):', correlations)
+  expect(Math.max(...correlations)).toBeLessThan(0.2)
+})

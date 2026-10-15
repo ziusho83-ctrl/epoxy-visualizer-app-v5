@@ -9,7 +9,6 @@ export type FloorOptions = {
   sheen: 'satin' | 'gloss'
 }
 export const MAX_EDGE = 1800
-const TILE = 1024
 let cachedTexture: { key: string; canvas: HTMLCanvasElement } | undefined
 
 export function canvas2d(width: number, height: number) {
@@ -21,63 +20,88 @@ export function canvas2d(width: number, height: number) {
   return { canvas, ctx }
 }
 
-function random(seed: string) {
-  let h = 2166136261
-  for (const char of seed) h = Math.imul(h ^ char.charCodeAt(0), 16777619)
-  return () => {
-    h += 0x6d2b79f5
-    let t = Math.imul(h ^ (h >>> 15), 1 | h)
-    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
+/** Hash absolute floor coordinates; never wrap or reuse a texture tile. */
+function cellHash(x: number, y: number, seed: number) {
+  let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ seed
+  h = Math.imul(h ^ (h >>> 13), 1274126177)
+  return (h ^ (h >>> 16)) >>> 0
 }
 
-/** Overlapping angular vinyl chips, not circles or transparent glitter. */
-function texture(blend: string, tones: string[]) {
-  const key = `${blend}:${tones.join(',')}`
+/**
+ * A unique, full-frame angular chip field (jittered Voronoi cells).
+ * Each cell's position, palette entry and brightness derive from its absolute
+ * floor coordinate. Only nearby rows of sites are cached; there is no
+ * modulo sampling, repeated bitmap, or viewport-dependent density reduction.
+ */
+function texture(w: number, h: number, top: number, bottom: number, options: FloorOptions) {
+  const key = JSON.stringify([w, h, top, bottom, options.blend, options.tones, options.chipSize])
   if (cachedTexture?.key === key) return cachedTexture.canvas
-  const { canvas, ctx } = canvas2d(TILE, TILE)
-  const rand = random(key)
-  // An opaque chip bed: no exposed solid-color gaps, even between larger chips.
-  for (let y = 0; y < TILE; y += 4) {
-    for (let x = 0; x < TILE; x += 4) {
-      ctx.fillStyle = tones[Math.floor(rand() * tones.length)]
-      ctx.fillRect(x, y, 4, 4)
+  const { canvas, ctx } = canvas2d(w, h)
+  const image = ctx.createImageData(w, h)
+  const pixels = image.data
+  const palette = options.tones.map(color => [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16)))
+  let seed = 2166136261
+  for (const char of options.blend) seed = Math.imul(seed ^ char.charCodeAt(0), 16777619)
+  const depth = Math.max(1, bottom - top)
+  // Same apparent chip scale as the earlier renderer, independent of viewport.
+  const unit = (w / 1200) * 0.48 * options.chipSize * 7
+  const minScale = unit * 0.32
+  const firstCell = Math.floor(-w * 0.5 / minScale) - 4
+  const cellCount = Math.ceil(w / minScale) + 10
+  type SiteRow = { x: Float32Array; y: Float32Array; color: Uint8Array }
+  const rows = new Map<number, SiteRow>()
+  function row(cy: number) {
+    const cached = rows.get(cy)
+    if (cached) return cached
+    const result: SiteRow = {
+      x: new Float32Array(cellCount), y: new Float32Array(cellCount), color: new Uint8Array(cellCount * 3),
     }
+    for (let i = 0; i < cellCount; i++) {
+      const cx = firstCell + i
+      const hash = cellHash(cx, cy, seed)
+      const tint = cellHash(cx, cy, seed ^ 0x53a9b4f1)
+      // Full-cell jitter avoids regular rows/columns of chips. Search a 5x5
+      // neighborhood so sites beyond adjacent cells cannot produce seams.
+      result.x[i] = cx + (hash & 65535) / 65535
+      result.y[i] = cy + (hash >>> 16) / 65535
+      const rgb = palette[tint % palette.length]
+      const brightness = 0.92 + (tint >>> 16) / 65535 * 0.14
+      for (let c = 0; c < 3; c++) result.color[i * 3 + c] = Math.min(255, Math.round(rgb[c] * brightness))
+    }
+    rows.set(cy, result)
+    return result
   }
-  for (let i = 0; i < 44000; i++) {
-    const x = rand() * TILE, y = rand() * TILE
-    const r = i < 34000 ? 2.5 + rand() * 5.5 : 0.65 + rand() * 1.5
-    const angle = rand() * Math.PI * 2
-    const aspect = 0.5 + rand() * 0.55
-    const color = tones[Math.floor(rand() * tones.length)]
-    const brightness = 0.92 + rand() * 0.14
-    const rgb = [1, 3, 5].map(offset => Math.min(255, Math.round(parseInt(color.slice(offset, offset + 2), 16) * brightness)))
-    ctx.fillStyle = `rgb(${rgb.join(',')})`
-    const vertices = 4 + Math.floor(rand() * 3)
-    const polygon: [number, number][] = []
-    for (let j = 0; j < vertices; j++) {
-      const theta = j / vertices * Math.PI * 2
-      const radius = r * (0.72 + rand() * 0.28)
-      const u = Math.cos(theta) * radius, v = Math.sin(theta) * radius * aspect
-      polygon.push([u * Math.cos(angle) - v * Math.sin(angle), u * Math.sin(angle) + v * Math.cos(angle)])
+  let worldY = 17.371
+  for (let y = top; y < bottom; y++) {
+    const scale = unit * (0.32 + 0.95 * (y - top) / depth)
+    // Four subpixel samples average tiny far-field flakes without lowering
+    // material coverage, and avoid shimmering/moire at mobile resolutions.
+    for (const oy of [0.25, 0.75]) {
+      const v = worldY + oy / scale
+      const cy = Math.floor(v)
+      const nearby = [row(cy - 2), row(cy - 1), row(cy), row(cy + 1), row(cy + 2)]
+      for (let x = 0; x < w; x++) {
+        const pixel = (y * w + x) * 4
+        for (const ox of [0.25, 0.75]) {
+          const u = (x + ox - w * 0.5) / scale
+          const cx = Math.floor(u) - firstCell
+          let best = Infinity, bestRow = nearby[0], bestIndex = cx
+          for (const sites of nearby) for (let i = cx - 2; i <= cx + 2; i++) {
+            const dx = u - sites.x[i], dy = v - sites.y[i]
+            const distance = dx * dx + dy * dy
+            if (distance < best) { best = distance; bestRow = sites; bestIndex = i }
+          }
+          for (let c = 0; c < 3; c++) pixels[pixel + c] += bestRow.color[bestIndex * 3 + c] / 4
+        }
+        pixels[pixel + 3] = 255
+      }
     }
-    // Wrap edge chips to make the tile seamless.
-    const xs = [0], ys = [0]
-    if (x < r) xs.push(TILE)
-    if (x > TILE - r) xs.push(-TILE)
-    if (y < r) ys.push(TILE)
-    if (y > TILE - r) ys.push(-TILE)
-    for (const ox of xs) for (const oy of ys) {
-      ctx.beginPath()
-      polygon.forEach(([px, py], j) => {
-        if (j === 0) ctx.moveTo(x + ox + px, y + oy + py)
-        else ctx.lineTo(x + ox + px, y + oy + py)
-      })
-      ctx.closePath()
-      ctx.fill()
-    }
+    worldY += 1 / scale
+    // Bound working memory even on long portrait hallway photos.
+    const keepFrom = Math.floor(worldY) - 3
+    for (const cy of rows.keys()) if (cy < keepFrom) rows.delete(cy)
   }
+  ctx.putImageData(image, 0, 0)
   cachedTexture = { key, canvas }
   return canvas
 }
@@ -128,20 +152,7 @@ export function renderFloor(photo: HTMLCanvasElement, options: FloorOptions) {
   const bottom = Math.min(h, Math.ceil(Math.max(...points.map(p => p.y))))
   const depth = Math.max(1, bottom - top)
   if (options.blend !== 'None') {
-    const tile = texture(options.blend, options.tones)
-    const pattern = ctx.createPattern(tile, 'repeat')
-    if (!pattern) throw new Error('Could not create the flake texture.')
-    ctx.fillStyle = pattern
-    let worldY = 137
-    // Screen-independent projection. Small distant chips; larger foreground chips.
-    // Scanline mapping keeps work proportional to pixels, never DOM flake count.
-    for (let y = top; y < bottom; y++) {
-      const t = (y - top) / depth
-      const scale = (w / 1200) * 0.48 * options.chipSize * (0.32 + 0.95 * t)
-      pattern.setTransform(new DOMMatrix([scale, 0, 0, scale, w * 0.5, y - worldY * scale]))
-      ctx.fillRect(0, y, w, 1)
-      worldY += 1 / scale
-    }
+    ctx.drawImage(texture(w, h, top, bottom, options), 0, 0)
   }
   ctx.globalCompositeOperation = 'multiply'
   ctx.imageSmoothingEnabled = true

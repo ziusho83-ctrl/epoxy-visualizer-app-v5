@@ -11,7 +11,7 @@
 
 ## What changed
 - Removed the viewport-dependent 70,000/290,000 SVG flake elements and separate export pattern.
-- One deterministic, seamless opaque chip texture with overlapping irregular polygons.
+- One deterministic, unique full-floor chip field with irregular angular cells; no repeating bitmap.
 - Perspective-scaled chips with identical full coverage on phones and desktops.
 - Low-frequency monochrome room lighting, restrained satin/gloss reflection; no source floor-color tinting.
 - Shared composited canvas for the displayed floor, exported floor, comparison, and quote card.
@@ -27,10 +27,10 @@ Install browsers with `npx playwright install chromium webkit`.
 Optional `CHROMIUM_PATH` points at an existing Chromium executable.
 `PREVIEW_URL` runs the browser suite against the deployed preview instead of localhost.
 
-Eight checks across mobile Chromium and mobile WebKit cover export pixel equality,
+Ten checks across mobile Chromium and mobile WebKit cover export pixel equality,
 unchanged outside-mask photo pixels (including a concave boundary), viewport invariance,
 opaque output, size/finish/palette/None controls, mask reset, portrait size bounds,
-and sharing cancellation. Browser suite stubs only the segmentation response;
+sharing cancellation, and long-portrait non-repetition at the former tile spacing. Browser suite stubs only the segmentation response;
 a separate real-image request confirmed the deployed segmentation endpoint returns 200.
 Real-device iPhone Photos/share-sheet behavior and physical sample accuracy still need human review.
 
@@ -40,3 +40,13 @@ palettes were preserved. Next useful refinement: calibrate color weights, actual
 size and gloss against photographed installer samples. Floor-plane perspective is a
 heuristic inferred from the mask; it is not a recovered 3D room or ray-traced reflection.
 This branch is intentionally NOT a production-ready merge while quote sending is disabled.
+
+## Repetition fix (October 15 follow-up)
+Vu identified visible repeated clusters in a long-hallway photo. Replaced the
+1024px repeating tile with absolute-coordinate hashed, fully jittered Voronoi
+chip cells, rasterized once for the entire bounded floor. No texture wrapping
+or modulo lookup. Four subpixel samples suppress tiny-chip aliasing. Only
+nearby site rows plus one full-frame material are cached.
+The regression test fails against the old deployed renderer (correlation
+0.90–0.96 at the repeating tile period), and passes against the new material.
+Density, preview/export parity, and production isolation are unchanged.
