@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { isEmail, imageValid, finishValid, sendEmail, customerEmail } from '../server/design-email.mjs'
 
 // Resend accepts and queues email; this is not a separate lead database.
 // Its idempotency window is 24 hours. Do not claim inbox delivery on acceptance.
@@ -21,6 +22,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       !(String(data.phone).replace(/\D/g, '').length >= 7 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(data.email)))) {
     return res.status(400).json({ error: 'Please enter your name, ZIP, and a valid phone or email.' })
   }
+  if (data.email && !isEmail(data.email)) return res.status(400).json({error:'Please enter a valid email.'})
+  if (!finishValid(b) || b.website) return res.status(400).json({error:'Invalid finish details'})
+  if (data.email && b.comparisonDataUrl !== undefined && !imageValid(b.comparisonDataUrl)) return res.status(400).json({error:'Please regenerate your before/after preview.'})
   const key = req.headers['idempotency-key']
   if (typeof key !== 'string' || !/^[a-f0-9-]{36}$/.test(key)) return res.status(400).json({ error: 'Invalid request identifier' })
   if (typeof b.imageDataUrl !== 'string' || b.imageDataUrl.length > 1500000 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(b.imageDataUrl)) return res.status(400).json({ error: 'Please regenerate your floor preview.' })
@@ -49,7 +53,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
     const result = await response.json()
     if (!response.ok || typeof result.id !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(result.id)) throw new Error('Email not accepted')
-    return res.status(200).json({ ok: true, leadId: key, emailId: result.id })
+    let customerEmailStatus = 'not_requested'
+    let customerEmailId: string | undefined
+    if (data.email) {
+      try {
+        customerEmailId = await sendEmail(token!, `confirmation-${key}`, customerEmail({...b,...data}, key))
+        customerEmailStatus = 'queued'
+      } catch { customerEmailStatus = 'failed' }
+    }
+    return res.status(200).json({ ok: true, leadId: key, emailId: result.id, customerEmailStatus, customerEmailId })
   } catch {
     return res.status(502).json({ error: 'We could not confirm your request. Your details are still here; please retry.' })
   }

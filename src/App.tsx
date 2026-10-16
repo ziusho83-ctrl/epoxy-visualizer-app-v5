@@ -112,30 +112,59 @@ function App() {
   const [estimateEnabled, setEstimateEnabled] = useState(false)
   const [sendingEstimate, setSendingEstimate] = useState(false)
   const [leadId, setLeadId] = useState('')
+  const [customerEmailStatus, setCustomerEmailStatus] = useState('')
+  const [designEmail, setDesignEmail] = useState('')
+  const [designStatus, setDesignStatus] = useState('')
+  const designStatusRef = useRef<HTMLParagraphElement>(null)
+  useEffect(()=>{if(designStatus) designStatusRef.current?.scrollIntoView({block:'nearest'})},[designStatus])
+  const [sendingDesign, setSendingDesign] = useState(false)
+  const designSendingRef = useRef(false)
+  const pendingDesign = useRef<{key:string;body:string}|null>(null)
+  function emailImages() {
+    if (!rendered?.canvas || !rendered.photo) throw new Error('Your floor preview is not ready yet.')
+    const width = Math.round(rendered.canvas.width * Math.min(1, 1000 / Math.max(rendered.canvas.width, rendered.canvas.height)))
+    const height = Math.round(width * rendered.canvas.height / rendered.canvas.width)
+    const after = canvas2d(width,height)
+    after.ctx.drawImage(rendered.canvas,0,0,width,height)
+    const comparison = canvas2d(width*2,height+40)
+    comparison.ctx.fillStyle='#ffffff'; comparison.ctx.fillRect(0,0,width*2,height+40)
+    comparison.ctx.drawImage(rendered.photo,0,40,width,height)
+    comparison.ctx.drawImage(rendered.canvas,width,40,width,height)
+    comparison.ctx.fillStyle='#111111'; comparison.ctx.font='20px sans-serif'
+    comparison.ctx.fillText('Before',12,27); comparison.ctx.fillText('After',width+12,27)
+    return {imageDataUrl:after.canvas.toDataURL('image/jpeg',0.8),comparisonDataUrl:comparison.canvas.toDataURL('image/jpeg',0.8)}
+  }
+  async function emailDesign() {
+    if (designSendingRef.current) return
+    designSendingRef.current=true; setSendingDesign(true); setDesignStatus('')
+    try {
+      const body=JSON.stringify({email:designEmail.trim(),selectedSolid,selectedFlake,chipSize,sheen,...emailImages()})
+      if (pendingDesign.current?.body !== body) pendingDesign.current={key:crypto.randomUUID(),body}
+      const response=await fetch('/api/email-design',{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':pendingDesign.current.key},body,signal:AbortSignal.timeout(20000)})
+      const result=await response.json()
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Could not confirm your email. Please retry.')
+      setDesignStatus('Your design email is queued. Check your inbox and junk folder. No estimate request was created.')
+    } catch(error) {setDesignStatus(error instanceof Error ? error.message : 'Please retry.')}
+    finally {designSendingRef.current=false;setSendingDesign(false)}
+  }
   const pendingEstimate = useRef<{key: string; body: string} | null>(null)
   const sendingRef = useRef(false)
   useEffect(() => {
     fetch('/api/quote').then(r => r.ok ? r.json() : null).then(data => setEstimateEnabled(data?.enabled === true)).catch(() => {})
   }, [])
-  async function submitEstimate() {
+  async function submitEstimate(retryConfirmation = false) {
     if (!estimateEnabled) { setRequestReviewed(true); return }
     if (sendingRef.current || !rendered?.canvas) return
     sendingRef.current = true
     setSendingEstimate(true)
     setQuoteStatus('')
     try {
-      const image = document.createElement('canvas')
-      const scale = Math.min(1, 1200 / Math.max(rendered.canvas.width, rendered.canvas.height))
-      image.width = Math.round(rendered.canvas.width * scale)
-      image.height = Math.round(rendered.canvas.height * scale)
-      const ctx = image.getContext('2d')
-      if (!ctx) throw new Error('Could not prepare your preview.')
-      ctx.drawImage(rendered.canvas, 0, 0, image.width, image.height)
-      const body = JSON.stringify({...quote, phone: contactMethod === 'phone' ? quote.phone : '', email: contactMethod === 'email' ? quote.email : '', zip, selectedSolid, selectedFlake, chipSize, sheen, imageDataUrl: image.toDataURL('image/jpeg', 0.82)})
+      const body = retryConfirmation && pendingEstimate.current ? pendingEstimate.current.body : JSON.stringify({...quote, phone: contactMethod === 'phone' ? quote.phone : '', email: quote.email.trim(), zip, selectedSolid, selectedFlake, chipSize, sheen, ...emailImages()})
       if (pendingEstimate.current?.body !== body) pendingEstimate.current = {key: crypto.randomUUID(), body}
-      const response = await fetch('/api/quote', {method: 'POST', headers: {'Content-Type': 'application/json', 'Idempotency-Key': pendingEstimate.current.key}, body, signal: AbortSignal.timeout(25000)})
+      const response = await fetch('/api/quote', {method: 'POST', headers: {'Content-Type': 'application/json', 'Idempotency-Key': pendingEstimate.current.key}, body, signal: AbortSignal.timeout(40000)})
       const result = await response.json()
       if (!response.ok || !result.ok || !result.leadId) throw new Error(result.error || 'Could not confirm your request. Please retry.')
+      setCustomerEmailStatus(result.customerEmailStatus || '')
       setLeadId(result.leadId)
       setRequestReviewed(true)
     } catch (error) {
@@ -158,6 +187,7 @@ function App() {
   function loadPhoto(url: string, sample = false) {
     requestVersion.current++
     setImageUrl(url)
+    setLeadId(''); setCustomerEmailStatus(''); setDesignStatus('')
     setMaskPoints([])
     setQuoteStatus('')
     setRequestReviewed(false)
@@ -437,18 +467,19 @@ function App() {
             {rendered?.error && <p role="alert">{rendered.error}</p>}
             {!rendered && <p role="status">Rendering your finish…</p>}
             <div className="action-bar"><button disabled={!previewReady} onClick={() => setShowSave(!showSave)} aria-expanded={showSave}>Save / Share</button><button className="primary" disabled={!previewReady} onClick={() => {setCompare(100); go(3)}}>Get estimate</button></div>
-            {showSave && <div className="save-options" ref={saveRef}><p>Download your design. No contact details needed.</p><button onClick={() => void exportPreviewImage('after')}>Finished floor</button><button onClick={() => void exportPreviewImage('comparison')}>Before &amp; after</button><p className="muted">Comparison uses the slider position above.</p></div>}
+            {showSave && <div className="save-options" ref={saveRef}><button type="button" onClick={()=>setShowSave(false)}>Close save options</button><p>Download your design. No contact details needed.</p><button onClick={() => void exportPreviewImage('after')}>Finished floor</button><button onClick={() => void exportPreviewImage('comparison')}>Before &amp; after</button><p className="muted">Comparison uses the slider position above.</p>{estimateEnabled && <form onSubmit={e=>{e.preventDefault();void emailDesign()}}><h3>Email me this design</h3><label className="field-inline">Design email<input required type="email" autoComplete="email" value={designEmail} onChange={e=>{setDesignEmail(e.target.value);setDesignStatus('')}} /></label><p className="muted">Receive the finished floor and a labeled before/after image. This does not request an estimate or subscribe you to marketing.</p><button type="submit" disabled={sendingDesign}>{sendingDesign ? 'Emailing…' : 'Email my design'}</button>{designStatus && <p ref={designStatusRef} role="status">{designStatus}</p>}</form>}</div>}
           </>}
           {step === 3 && <>
             <p className="muted">Your selected finish and visualization belong with your request. No need to describe them again.</p>
-            {requestReviewed ? <div role="status" className="review-state"><h2>{leadId ? "Your estimate request has been submitted." : "Your request is ready to review."}</h2><p><strong>{leadId ? `Reference: ${leadId}. Your request is queued for email delivery to LuxShield.` : "Preview only: nothing was sent or stored."}</strong></p><p>{quote.customerName} · {contactMethod === 'phone' ? quote.phone : quote.email} · ZIP {zip}</p><p>{finishLabel}</p>{!leadId && <button onClick={() => setRequestReviewed(false)}>Edit details</button>}</div> : <form onSubmit={e => {e.preventDefault(); void submitEstimate()}}>
+            {requestReviewed ? <div role="status" className="review-state"><h2>{leadId ? "Your estimate request has been submitted." : "Your request is ready to review."}</h2><p><strong>{leadId ? `Reference: ${leadId}. Your request is queued for email delivery to LuxShield.` : "Preview only: nothing was sent or stored."}</strong></p>{customerEmailStatus === 'queued' && <p>A confirmation with your floor design is queued to your email.</p>}{customerEmailStatus === 'failed' && <div><p>Your estimate was submitted, but we could not confirm the customer email.</p><button disabled={sendingEstimate} onClick={()=>void submitEstimate(true)}>Retry confirmation email</button></div>}<p>{quote.customerName} · {contactMethod === 'phone' ? quote.phone : quote.email} · ZIP {zip}</p><p>{finishLabel}</p>{!leadId && <button onClick={() => setRequestReviewed(false)}>Edit details</button>}</div> : <form onSubmit={e => {e.preventDefault(); void submitEstimate()}}>
               <label className="field-inline">Name<input required autoComplete="name" value={quote.customerName} onChange={e => setQuote(q => ({...q,customerName:e.target.value}))} /></label>
               <label className="field-inline">Contact me by<select value={contactMethod} onChange={e => setContactMethod(e.target.value)}><option value="phone">Phone</option><option value="email">Email</option></select></label>
               {contactMethod === 'phone' ? <label className="field-inline">Phone<input required type="tel" autoComplete="tel" minLength={7} title="Enter a phone number with at least seven characters" value={quote.phone} onChange={e => setQuote(q => ({...q,phone:e.target.value}))} /></label> : <label className="field-inline">Email<input required type="email" autoComplete="email" value={quote.email} onChange={e => setQuote(q => ({...q,email:e.target.value}))} /></label>}
+              {contactMethod === 'phone' && <label className="field-inline">Email for your design (optional)<input type="email" autoComplete="email" value={quote.email} onChange={e=>setQuote(q=>({...q,email:e.target.value}))} /></label>}
               <label className="field-inline">ZIP code<input required inputMode="numeric" autoComplete="postal-code" pattern="[0-9]{5}(-[0-9]{4})?" title="Enter a five-digit ZIP code" value={zip} onChange={e => setZip(e.target.value)} /></label>
               <label className="field-inline">Approximate area<select value={quote.squareFeet} onChange={e => setQuote(q => ({...q,squareFeet:e.target.value}))}><option value="">Not sure</option><option>Under 250 sq ft</option><option>250–500 sq ft</option><option>500–800 sq ft</option><option>Over 800 sq ft</option></select></label>
               <details><summary>Add project details (optional)</summary><label className="field-inline">Project address<input autoComplete="street-address" value={quote.address} onChange={e => setQuote(q => ({...q,address:e.target.value}))} /></label><label className="field-inline">Notes<textarea rows={3} value={quote.notes} onChange={e => setQuote(q => ({...q,notes:e.target.value}))} /></label></details>
-              <p className="muted">{estimateEnabled ? "By submitting, you ask LuxShield to contact you about this project. Your selected finish and visualization are included." : "Preview only. Use test details. This form does not send or save a request."}</p>
+              <p className="muted">{estimateEnabled ? "By submitting, you ask LuxShield to contact you about this project. Your selected finish and visualization are included. If you provide email, we also send you a confirmation and design copy. No marketing subscription." : "Preview only. Use test details. This form does not send or save a request."}</p>
               <button className="primary" type="submit" disabled={sendingEstimate}>{sendingEstimate ? "Sending…" : estimateEnabled ? "Send estimate request" : "Review request"}</button>
             </form>}
             <button className="text-button" onClick={() => go(2)}>Back to finishes</button>
